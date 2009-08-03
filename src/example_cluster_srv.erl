@@ -5,7 +5,6 @@
 %%% Created     : 2009-08-03
 %%%-------------------------------------------------------------------
 -module(example_cluster_srv).
--include_lib("../include/gen_cluster.hrl").
 -behaviour(gen_cluster).
 
 -compile(export_all).

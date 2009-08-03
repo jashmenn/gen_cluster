@@ -41,6 +41,9 @@ behaviour_info(_) ->
 %% State data record.
 -record(state, {module, state, data, plist}).
 
+%% debugging helper
+-define (TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
+
 %% Users will use these start functions instead of gen_server's.
 %% We add the user's module name to the arguments and call
 %% server's start function with our module name instead.
@@ -93,7 +96,6 @@ wake_hib(Parent, Name, State, Mod, Debug) ->
 %%--------------------------------------------------------------------
 
 init([Mod, Args]) ->
-    % ?TRACE("init being called", [Mod, Args]),
     InitialState = #state{module=Mod, plist=[self()]},
     {ok, State1} = join_existing_cluster(InitialState),
     {_Resp, State2} = start_cluster_if_needed(State1),
@@ -187,19 +189,19 @@ join_existing_cluster(State) ->
     connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
     NewState = State,
-    % NewState = case global:whereis_name(?SERVER_GLOBAL) of % join unless we are the main server 
-    %     undefined ->
-    %         ?TRACE("existing cluster undefined", undefined),
-    %         State;
-    %     X when X =:= self() ->
-    %         ?TRACE("we are the cluster, skipping", X),
-    %         State;
-    %     _ ->
-    %         ?TRACE("joining server...", global:whereis_name(?SERVER_GLOBAL)),
-    %         % {ok, KnownRing} = gen_server:call({global, ?SERVER_GLOBAL}, {join, State}),
-    %         % {ok, NewInformedState} = add_pids_to_ring(KnownRing, State),
-    %         % broadcast_join_announcement(NewInformedState)
-    % end,
+    NewState = case whereis_global(State) of % join unless we are the main server 
+        undefined ->
+            ?TRACE("existing cluster undefined", undefined),
+            State;
+        X when X =:= self() ->
+            ?TRACE("we are the cluster, skipping", X),
+            State;
+        _ ->
+            ?TRACE("joining server...", whereis_global(State)),
+            {ok, KnownPlist} = gen_server:call({global, globally_registered_name(State)}, {join, State}),
+            {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
+            broadcast_join_announcement(NewInformedState)
+    end,
     {ok, NewState}.
 
 get_cluster() ->
@@ -227,15 +229,68 @@ connect_to_servers(ServerNames) ->
 %%--------------------------------------------------------------------
 start_cluster_if_needed(State) ->
     global:sync(), % otherwise we may not see the pid yet
-    % {Resp, NewState} = case global:whereis_name(?SERVER_GLOBAL) of
-    %   undefined ->
-    %       start_cluster(State);
-    %   _ ->
-    %       {no, State}
-    % end,
-    % {{ok, Resp}, NewState}.
-    {ok,ok, State}.
+    {Resp, NewState} = case whereis_global(State) of
+      undefined ->
+          start_cluster(State);
+      _ ->
+          {no, State}
+    end,
+    {{ok, Resp}, NewState}.
 
 
 set_known_servers(KnownServers) ->
     todo.
+
+whereis_global(State) ->
+    global:whereis_name(globally_registered_name(State)).
+
+%% gen_cluster will globally register a pid of the format below. This allows
+%% for each module that becomes a gen_cluster to have a central rally point and
+%% will not confluct with other modules using gen_cluster
+globally_registered_name(State) ->
+    Mod = State#state.module,
+    "gen_cluster_" ++ atom_to_list(Mod).
+
+%%--------------------------------------------------------------------
+%% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
+%% Description: Start a new cluster, basically just globally register a pid for
+%% joining
+%%--------------------------------------------------------------------
+start_cluster(State) ->
+    ?TRACE("Starting server:", globally_registered_name(State)),
+    RegisterResp = global:register_name(globally_registered_name(State), self()),
+    {RegisterResp, State}.
+
+
+add_pids_to_plist([Head|OtherPids], State) ->
+    {ok, NewState} = add_pid_to_plist(Head, State),
+    add_pids_to_plist(OtherPids, NewState);
+add_pids_to_plist([], State) ->
+    {ok, State}.
+
+add_pid_to_plist(OtherPid, State) ->
+    Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#state.plist),
+    NewPlist = case Exists of
+        true ->
+          State#state.plist;
+        false ->
+          % monitor that pid
+          erlang:monitor(process, OtherPid),
+          % add the other pid to our plist
+          [OtherPid|State#state.plist]
+    end,
+    NewState  = State#state{plist=NewPlist},
+    {ok, NewState}.
+
+remove_pid_from_plist(OtherPid, State) ->
+    NewPlist = lists:delete(OtherPid, State#state.plist),
+    NewState  = State#state{plist=NewPlist},
+    {ok, NewState}.
+
+broadcast_join_announcement(State) ->
+    NotSelfPids   = lists:delete(self(), State#state.plist),
+    NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
+    [call(Pid, {joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
+    State.
+
+
