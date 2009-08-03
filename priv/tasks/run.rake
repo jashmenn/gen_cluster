@@ -12,6 +12,8 @@ namespace :server do
       stop = ENV['STOP'] ? " -s init stop " : ""
       sh %Q{erl -pa #{root}/ebin -pa #{root}/deps/*/ebin  \
 -name "example_cluster_srv#{i}@localhost" \
++W w \
+-boot start_sasl \
 -s reloader \
 -s example_cluster_srv start \
 #{existing_server}  \

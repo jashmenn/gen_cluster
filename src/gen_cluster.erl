@@ -6,8 +6,6 @@
 %%% Created     : 2009-08-03
 %%%
 %%% NOTES:
-%%% * gen_cluster reserves the use of all messages starting with gen_cluster.
-%%%   e.g. handle_call(gen_cluster_join, ...)
 %%% * uses distributed erlang (today)
 %%% * registers one global pid in the format of "gen_cluster_" ++
 %%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
@@ -132,6 +130,19 @@ init([Mod, Args]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
+
+handle_call({'$gen_cluster', join}, From, State) ->
+    {ok, NewState} = handle_node_joining(From, State),
+    ?TRACE("join ok", NewState),
+    Reply = {ok, NewState#state.plist},
+    {reply, Reply, NewState};
+
+handle_call({'$gen_cluster', joined_announcement, KnownRing}, _From, State) ->
+    {ok, NewState} = handle_node_joined_announcement(KnownRing, State),
+    ?TRACE("rec'd nodejoin join announcement", NewState),
+    Reply = {ok, NewState#state.plist},
+    {reply, Reply, NewState};
+
 handle_call(_Request, _From, State) -> 
     {reply, todo_reply, State}.
 
@@ -184,7 +195,25 @@ code_change(_OldVsn, State, _Extra) ->
 foo() ->
     todo.
 
-%% other methods: get_cluster
+%%--------------------------------------------------------------------
+%% Func: handle_node_joining(OtherNode, State) -> {ok, NewState}
+%% Description: Called when another node joins the server cluster. 
+%%--------------------------------------------------------------------
+handle_node_joining({OtherPid, Tag}, State) ->
+    {ok, NewState} = add_pid_to_plist(OtherPid, State),
+    {ok, NewState}.
+
+%%--------------------------------------------------------------------
+%% Func: handle_node_joined_announcement(KnownRing, State) -> {ok, NewState}
+%% Description: When a node joins a known server, it then broadcasts to all
+%% other servers that it joined.  % It tells all other servers about the entire
+%% pidlist it received from the known node. This is a check to make sure % that
+%% everytime a node joins all the other nodes know about it as well as every
+%% other node in the cluster.
+%%--------------------------------------------------------------------
+handle_node_joined_announcement(KnownRing, State) ->
+    {ok, NewState} = add_pids_to_plist(KnownRing, State),
+    {ok, NewState}.
 
 %%--------------------------------------------------------------------
 %% Func: join_existing_cluster(State) -> {ok, NewState} | false
@@ -197,7 +226,9 @@ join_existing_cluster(State) ->
     ?TRACE("servers", Servers),
     connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
-    NewState = State,
+    ?TRACE("foo", Servers),
+    ?TRACE("global", whereis_global(State)),
+    ?TRACE("bar", Servers),
     NewState = case whereis_global(State) of % join unless we are the main server 
         undefined ->
             ?TRACE("existing cluster undefined", undefined),
@@ -207,7 +238,7 @@ join_existing_cluster(State) ->
             State;
         _ ->
             ?TRACE("joining server...", whereis_global(State)),
-            {ok, KnownPlist} = gen_server:call({global, globally_registered_name(State)}, {join, State}),
+            {ok, KnownPlist} = call({global, globally_registered_name(State)}, {{'$gen_cluster', join}, State}),
             {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
             broadcast_join_announcement(NewInformedState)
     end,
@@ -225,10 +256,16 @@ connect_to_servers(ServerNames) ->
       _ -> 
          ?TRACE("connecting to server: ", Server),
          {Node, _Pid} = Server,
-         pong = net_adm:ping(Node)
+         case net_adm:ping(Node) of
+             pong ->
+                 ok;
+             _ ->
+                 ?TRACE("WARNING: ping of Node failed:", Node) % should this be a bigger failure? how should we handle this so that way the first server doesn't always have to have this problem?
+         end
       end
     end,
     ServerNames),
+   ?TRACE("allo, foo", foo),
    {ok, ServerRefs}.
 
 %%--------------------------------------------------------------------
@@ -298,6 +335,6 @@ remove_pid_from_plist(OtherPid, State) ->
 broadcast_join_announcement(State) ->
     NotSelfPids   = lists:delete(self(), State#state.plist),
     NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
-    [call(Pid, {joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
+    [call(Pid, {{'$gen_cluster', joined_announcement}, State#state.plist}) || Pid <- NotGlobalPids],
     State.
 
