@@ -10,28 +10,31 @@
 
 -compile(export_all).
 
--export([start_link/1]).
+-export([start/0, start_link/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
 % gen_cluster callback
--export([foo/0]).
-
-%% Macros
--define(SERVER, ?MODULE).
+-export([foo/0, handle_join/0, handle_leave/0]).
 
 %%====================================================================
 %% API
 %%====================================================================
+%%--------------------------------------------------------------------
+%% Function: start() -> {ok,Pid} | ignore | {error,Error}
+%% Description: Alias for start_link
+%%--------------------------------------------------------------------
+start() ->
+    start_link([]). 
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(Config) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [Config], []).
+    gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -120,6 +123,6 @@ handle_leave() ->
 
 % list of {Node, RegisteredPid}
 % Node will be sent to net_adm:ping
-known_nodes(State) ->
+known_nodes(_State) ->
     [{"localhost", example_cluster_srv1}].
 

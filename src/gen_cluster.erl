@@ -43,15 +43,15 @@ behaviour_info(_) ->
 
 %% Users will use these start functions instead of gen_server's.
 %% We add the user's module name to the arguments and call
-%% gen_fsm's start function with our module name instead.
+%% server's start function with our module name instead.
 start(Mod, Args, Options) ->
-    gen_server:start(?MODULE, nolink, Mod, Args, Options).
+    gen_server:start(?MODULE, [Mod, Args], Options).
 start(Name, Mod, Args, Options) ->
-    gen_server:start(?MODULE, nolink, Name, Mod, Args, Options).
+    gen_server:start(Name, ?MODULE, [Mod, Args], Options).
 start_link(Mod, Args, Options) ->
-    gen_server:start(?MODULE, link, Mod, Args, Options).
+    gen_server:start(?MODULE, [Mod, Args], Options).
 start_link(Name, Mod, Args, Options) ->
-    gen_server:start(?MODULE, link, Name, Mod, Args, Options).
+    gen_server:start(Name, ?MODULE, [Mod, Args], Options).
 
 %% Delegate the rest of the reqests to gen_server
 call(Name, Request) ->
