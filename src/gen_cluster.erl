@@ -93,8 +93,8 @@ wake_hib(Parent, Name, State, Mod, Debug) ->
 %%--------------------------------------------------------------------
 
 init([Mod, Args]) ->
-    ?TRACE("init being called", foo),
-    InitialState = #state{plist=[self()]},
+    % ?TRACE("init being called", [Mod, Args]),
+    InitialState = #state{module=Mod, plist=[self()]},
     {ok, State1} = join_existing_cluster(InitialState),
     {_Resp, State2} = start_cluster_if_needed(State1),
  
@@ -180,7 +180,10 @@ foo() ->
 %% Description: Look for any existing servers in the cluster, try to join them
 %%--------------------------------------------------------------------
 join_existing_cluster(State) ->
-    Servers = ?MODULE:known_nodes(State#state.state),
+    Mod = State#state.module,
+    ?TRACE("join state", [State, Mod]),
+    Servers = Mod:known_nodes(State#state.state),
+    ?TRACE("servers", Servers),
     connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
     NewState = State,
@@ -233,3 +236,6 @@ start_cluster_if_needed(State) ->
     % {{ok, Resp}, NewState}.
     {ok,ok, State}.
 
+
+set_known_servers(KnownServers) ->
+    todo.

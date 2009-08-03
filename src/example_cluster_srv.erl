@@ -48,8 +48,7 @@ start_link(Config) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 
-init([]) -> 
-    ?TRACE("im being called", haha),
+init(Args) -> 
     {ok, todo_state}.
 
 %%--------------------------------------------------------------------
@@ -124,5 +123,5 @@ handle_leave() ->
 % list of {Node, RegisteredPid}
 % Node will be sent to net_adm:ping
 known_nodes(_State) ->
-    [{"localhost", example_cluster_srv1}].
+    [{"localhost", example_cluster_srv}].
 
