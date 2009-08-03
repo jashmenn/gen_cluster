@@ -4,14 +4,13 @@
 %%% Description : desc
 %%% Created     : 2009-08-03
 %%%-------------------------------------------------------------------
--module(example_cluster_srv.erl).
--behaviour(gen_cluster).
-
+-module(example_cluster_srv).
 -include_lib("../include/gen_cluster.hrl").
+-behaviour(gen_cluster).
 
 -compile(export_all).
 
--export([start/0, start_link/1]).
+-export([start/0, start/1, start_link/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -31,7 +30,10 @@
 %% Description: Alias for start_link
 %%--------------------------------------------------------------------
 start() ->
-    start_link(?DEFAULT_CONFIG). 
+    start_link([]). 
+
+start(Args) ->
+    start_link(Args). 
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -117,4 +119,15 @@ code_change(_OldVsn, State, _Extra) ->
 
 foo() ->
     todo.
+
+handle_join() ->
+    ok.
+
+handle_leave() ->
+    ok.
+
+% list of {Node, RegisteredPid}
+% Node will be sent to net_adm:ping
+known_nodes(State) ->
+    [{"localhost", example_cluster_srv1}].
 
