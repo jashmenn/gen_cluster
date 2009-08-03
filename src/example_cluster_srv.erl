@@ -10,7 +10,7 @@
 
 -compile(export_all).
 
--export([start/0, start/1, start_link/1]).
+-export([start_link/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -25,15 +25,6 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Alias for start_link
-%%--------------------------------------------------------------------
-start() ->
-    start_link([]). 
-
-start(Args) ->
-    start_link(Args). 
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
@@ -55,6 +46,7 @@ start_link(Config) ->
 %%--------------------------------------------------------------------
 
 init([]) -> 
+    ?TRACE("im being called", haha),
     {ok, todo_state}.
 
 %%--------------------------------------------------------------------

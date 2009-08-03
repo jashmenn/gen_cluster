@@ -28,7 +28,13 @@
 -export([behaviour_info/1]).
 
 behaviour_info(callbacks) ->
-    [{handle_join, 0}, {handle_leave, 0}];
+    [
+    % gen_cluster
+      {handle_join, 0}, {handle_leave, 0},
+    % gen_server      
+      {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
+   ];
+
 behaviour_info(_) ->
     undefined.
 
@@ -87,6 +93,7 @@ wake_hib(Parent, Name, State, Mod, Debug) ->
 %%--------------------------------------------------------------------
 
 init([Mod, Args]) ->
+    ?TRACE("init being called", foo),
     InitialState = #state{plist=[self()]},
     {ok, State1} = join_existing_cluster(InitialState),
     {_Resp, State2} = start_cluster_if_needed(State1),
