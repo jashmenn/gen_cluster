@@ -1,0 +1,6 @@
+*.beam
+erl_crash.dump
+html
+.erlang.cookie
+.autosession.vim
+.DS_Store
