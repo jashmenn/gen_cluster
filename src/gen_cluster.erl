@@ -1,9 +1,18 @@
 %%%-------------------------------------------------------------------
 %%% File    : stoplight_srv.erl
-%%% Author  : nmurray@attinteractive.com
+%%% Author  : nmurray@attinteractive.com, alerner@attinteractive.com
 %%% Description : Cascading gen_server behavior that implements process clustering.  
 %%% See: http://wiki.trapexit.org/index.php/Cascading_Behaviours
 %%% Created     : 2009-08-03
+%%%
+%%% NOTES:
+%%% * gen_cluster reserves the use of all messages starting with gen_cluster.
+%%%   e.g. handle_call(gen_cluster_join, ...)
+%%% * uses distributed erlang (today)
+%%% * registers one global pid in the format of "gen_cluster_" ++
+%%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
+%%%   for one "rallying point" for each new node that joins the cluster.
+%%%   If the node holding the rally point fails, a new node will take it over (TODO)
 %%%-------------------------------------------------------------------
 -module(gen_cluster).
 -include_lib("../include/gen_cluster.hrl").
@@ -261,7 +270,6 @@ start_cluster(State) ->
     RegisterResp = global:register_name(globally_registered_name(State), self()),
     {RegisterResp, State}.
 
-
 add_pids_to_plist([Head|OtherPids], State) ->
     {ok, NewState} = add_pid_to_plist(Head, State),
     add_pids_to_plist(OtherPids, NewState);
@@ -292,5 +300,4 @@ broadcast_join_announcement(State) ->
     NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
     [call(Pid, {joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
     State.
-
 
