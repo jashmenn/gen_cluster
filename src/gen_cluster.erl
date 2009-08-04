@@ -131,12 +131,12 @@ init([Mod, Args]) ->
     end.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
+%% Function:  handle_call(Request, From, State) -> {reply, Reply, State} |
+%%                                        {reply, Reply, State, Timeout} |
+%%                                                      {noreply, State} |
+%%                                             {noreply, State, Timeout} |
+%%                                          {stop, Reason, Reply, State} |
+%%                                                 {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
@@ -158,11 +158,15 @@ handle_call({'$gen_cluster', plist}, _From, State) ->
 
 handle_call(Request, From, State) -> 
     Mod = State#state.module,
-    Mod:handle_call(Request, From, State).
+    % Reply = Mod:handle_call(Request, From, State),
+    ok.
+     
+
     % pass through here TODO
     % {reply, todo_reply, State}.
 
-
+% delegate(Mod, Method, Args, State) ->
+%     todo.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -171,7 +175,9 @@ handle_call(Request, From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) -> 
-    Mod = State#state.module,
+    % Mod = State#state.module,
+    % ?TRACE("handling cast in gen cluster", []),
+    % ok = bad,
     % pass through, TODO
     {noreply, State}.
 
@@ -199,7 +205,7 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) -> 
+terminate(_Reason, State) -> 
     Mod = State#state.module,
     % pass though TODO
     ok.

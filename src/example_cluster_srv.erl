@@ -9,7 +9,7 @@
 
 -compile(export_all).
 
--export([start/0, start_link/1]).
+-export([start/0, start_link/1, start_named/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -17,7 +17,8 @@
 
 % gen_cluster callback
 -export([handle_join/3, handle_node_joined/3, handle_leave/4]).
--define (TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
+-define(TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
+-record(state, {name, pid, timestamp}).
 
 %%====================================================================
 %% API
@@ -36,6 +37,9 @@ start() ->
 start_link(Config) ->
     gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
 
+start_named(Name) ->
+    gen_server:start_link({local, Name}, ?MODULE, [], []).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -50,7 +54,8 @@ start_link(Config) ->
 
 init(Args) -> 
     io:format(user, "TRACE ~p:~p called example init~n", [?MODULE, ?LINE]),
-    {ok, todo_state}.
+    InitialState = #state{name=example_cluster_srv, pid=self(), timestamp=0},
+    {ok, InitialState}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -61,6 +66,14 @@ init(Args) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+
+handle_call({ohai}, _From, State) ->
+    T = State#state.timestamp + 1,
+    NewState = State#state{timestamp=T},
+    {reply, hello, NewState};
+
+handle_call({state}, _From, State) -> 
+    {reply, {ok, State}, State};
 
 handle_call(_Request, _From, State) -> 
     {reply, todo_reply, State}.
@@ -83,6 +96,9 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast(stop, State) ->
+    ?TRACE("got stop cast", []),
+    {stop, normal, State};
 handle_cast(_Msg, State) -> 
     {noreply, State}.
 
@@ -148,8 +164,13 @@ known_nodes(_State) ->
         {ok, [[Server]]} ->
 	        [{list_to_atom(Server), undefined}];
 	    _ ->
-	        undefined
-	end.%,
+            case application:get_env(gen_cluster, servers) of
+                {ok, Server} ->
+                   [{Server, undefined}];
+                _ ->
+                  undefined
+            end
+	end.
     % [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
 
 
