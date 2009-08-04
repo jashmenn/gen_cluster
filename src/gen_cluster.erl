@@ -51,7 +51,11 @@ behaviour_info(_) ->
 -record(state, {module, state, data, plist, seed}).
 
 %% debugging helper
--define (TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
+-define (DEBUG, false).
+-define (TRACE(X, M), case ?DEBUG of
+  true -> io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M]);
+  false -> ok
+end).
 
 %% Users will use these start functions instead of gen_server's.
 %% We add the user's module name to the arguments and call
@@ -163,27 +167,27 @@ handle_call(Request, From, State) ->
     handle_call_reply(Reply, From, State).
 
 % handle the replies by updating and substituting our own state
-handle_call_reply({reply, Reply, ExtState}, From, State) ->
+handle_call_reply({reply, Reply, ExtState}, _From, State) ->
     NewState = State#state{state=ExtState},
     {reply, Reply, NewState};
 
-handle_call_reply({reply, Reply, ExtState, Timeout}, From, State) ->
+handle_call_reply({reply, Reply, ExtState, Timeout}, _From, State) ->
     NewState = State#state{state=ExtState},
     {reply, Reply, NewState, Timeout};
 
-handle_call_reply({noreply, ExtState}, From, State)  ->
+handle_call_reply({noreply, ExtState}, _From, State)  ->
     NewState = State#state{state=ExtState},
     {noreply, NewState};
 
-handle_call_reply({noreply, ExtState, Timeout}, From, State) ->
+handle_call_reply({noreply, ExtState, Timeout}, _From, State) ->
     NewState = State#state{state=ExtState},
     {noreply, NewState, Timeout};
 
-handle_call_reply({stop, Reason, Reply, ExtState}, From, State)  ->
+handle_call_reply({stop, Reason, Reply, ExtState}, _From, State)  ->
     NewState = State#state{state=ExtState},
     {stop, Reason, Reply, NewState};
 
-handle_call_reply({stop, Reason, ExtState}, From, State) ->
+handle_call_reply({stop, Reason, ExtState}, _From, State) ->
     NewState = State#state{state=ExtState},
     {stop, Reason, NewState}.
     % handle Other?
@@ -250,7 +254,7 @@ terminate(Reason, State) ->
 code_change(OldVsn, State, Extra) -> 
     Mod = State#state.module,
     ExtState = State#state.state,
-    {ok, NewExtState} = Mod:code_change(OldVsn, State, Extra),
+    {ok, NewExtState} = Mod:code_change(OldVsn, ExtState, Extra),
     NewState = State#state{state=NewExtState},
     {ok, NewState}.
 
@@ -258,7 +262,7 @@ code_change(OldVsn, State, Extra) ->
 %% Func: handle_node_joining(OtherNode, State) -> {ok, NewState}
 %% Description: Called when another node joins the server cluster. 
 %%--------------------------------------------------------------------
-handle_node_joining({OtherPid, Tag}, State) ->
+handle_node_joining({OtherPid, _Tag}, State) ->
     {ok, NewState} = add_pid_to_plist(OtherPid, State),
 
     % callback
@@ -279,7 +283,7 @@ handle_node_joining({OtherPid, Tag}, State) ->
 %% 
 %% TODO, consider removing this method entirely
 %%--------------------------------------------------------------------
-handle_node_joined_announcement({OtherPid, Tag}, KnownRing, State) ->
+handle_node_joined_announcement({OtherPid, _Tag}, KnownRing, State) ->
     {ok, NewState} = add_pids_to_plist(KnownRing, State),
 
     % callback
@@ -411,7 +415,7 @@ get_seed_nodes(State) ->
             [list_to_atom(Server)];
        _ ->
             case State#state.seed of
-                [Server|Servers] ->
+                [Server|_Servers] ->
                   ?TRACE("got seed servers", foo),
                    [{Server, undefined}];
                 _ ->
