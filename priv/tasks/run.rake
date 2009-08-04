@@ -4,13 +4,13 @@ def root
   File.dirname(__FILE__)  + "/../../"
 end
 
-SERVER   = "example_cluster_srv1@localhost"
+SERVER   = "example_cluster_srv1@#{Socket.gethostname}"
 
 namespace :server do
   1.upto(4) do |i| 
     desc "start server #{i}"
     task "start#{i}" => [".erlang.cookie", :compile] do
-      existing_server = i > 1 ? " -gen_cluster servers '[#{SERVER}]' " : ""
+      existing_server = i > 1 ? " -gen_cluster_known '#{SERVER}' " : ""
       stop = ENV['STOP'] ? " -s init stop " : ""
       sh %Q{erl -pa #{root}/ebin -pa #{root}/deps/*/ebin  \
 -name "example_cluster_srv#{i}@#{Socket.gethostname}" \

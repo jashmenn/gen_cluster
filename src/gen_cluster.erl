@@ -146,7 +146,7 @@ handle_call({'$gen_cluster', join}, From, State) ->
     Reply = {ok, NewState#state.plist},
     {reply, Reply, NewState};
 
-handle_call({'$gen_cluster', joined_announcement, KnownRing}, _From, State) ->
+handle_call({'$gen_cluster', joined_announcement, KnownRing}, From, State) ->
     ?TRACE("$gen_cluster joined_announcement", State),
     {ok, NewState} = handle_node_joined_announcement(From, KnownRing, State),
     Reply = {ok, NewState#state.plist},
@@ -156,9 +156,13 @@ handle_call({'$gen_cluster', plist}, _From, State) ->
     Reply = {ok, State#state.plist},
     {reply, Reply, State};
 
-handle_call(_Request, _From, State) -> 
+handle_call(Request, From, State) -> 
+    Mod = State#state.module,
+    Mod:handle_call(Request, From, State).
     % pass through here TODO
-    {reply, todo_reply, State}.
+    % {reply, todo_reply, State}.
+
+
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -167,6 +171,7 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) -> 
+    Mod = State#state.module,
     % pass through, TODO
     {noreply, State}.
 
@@ -177,11 +182,12 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
-    ?TRACE("received 'DOWN'. Removing node from list. info was:", Info),
+    ?TRACE("received 'DOWN'. Removing node from list. Info:", Info),
     {ok, NewState} = remove_pid_from_plist(Pid, State),
-    ?TRACE("NewState is:", NewState),
+    Mod = State#state.module,
     {noreply, NewState};
 handle_info(_Info, State) -> 
+    Mod = State#state.module,
     % pass through TODO
     {noreply, State}.
 
@@ -194,6 +200,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) -> 
+    Mod = State#state.module,
     % pass though TODO
     ok.
 
@@ -202,6 +209,7 @@ terminate(_Reason, _State) ->
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) -> 
+    Mod = State#state.module,
     % pass through TODO
     {ok, State}.
 

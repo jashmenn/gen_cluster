@@ -17,6 +17,7 @@
 
 % gen_cluster callback
 -export([handle_join/3, handle_node_joined/3, handle_leave/4]).
+-define (TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
 
 %%====================================================================
 %% API
@@ -143,5 +144,13 @@ handle_leave(LeavingPid, Pidlist, Info, State) ->
 % list of {Node, RegisteredPid}
 % Node will be sent to net_adm:ping
 known_nodes(_State) ->
-    [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
+	case init:get_argument(gen_cluster_known) of
+        {ok, [[Server]]} ->
+	        [{list_to_atom(Server), undefined}];
+	    _ ->
+	        undefined
+	end.%,
+    % [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
+
+
 
