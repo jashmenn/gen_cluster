@@ -130,7 +130,6 @@ init([Mod, Args]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
-
 handle_call({'$gen_cluster', join}, From, State) ->
     {ok, NewState} = handle_node_joining(From, State),
     ?TRACE("join ok", NewState),
@@ -201,6 +200,7 @@ foo() ->
 %%--------------------------------------------------------------------
 handle_node_joining({OtherPid, Tag}, State) ->
     {ok, NewState} = add_pid_to_plist(OtherPid, State),
+    % TODO - addin callback here
     {ok, NewState}.
 
 %%--------------------------------------------------------------------
@@ -226,9 +226,6 @@ join_existing_cluster(State) ->
     ?TRACE("servers", Servers),
     connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
-    ?TRACE("foo", Servers),
-    ?TRACE("global", whereis_global(State)),
-    ?TRACE("bar", Servers),
     NewState = case whereis_global(State) of % join unless we are the main server 
         undefined ->
             ?TRACE("existing cluster undefined", undefined),
@@ -238,7 +235,7 @@ join_existing_cluster(State) ->
             State;
         _ ->
             ?TRACE("joining server...", whereis_global(State)),
-            {ok, KnownPlist} = call({global, globally_registered_name(State)}, {{'$gen_cluster', join}, State}),
+            {ok, KnownPlist} = call({global, globally_registered_name(State)}, {'$gen_cluster', join}),
             {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
             broadcast_join_announcement(NewInformedState)
     end,
@@ -265,7 +262,6 @@ connect_to_servers(ServerNames) ->
       end
     end,
     ServerNames),
-   ?TRACE("allo, foo", foo),
    {ok, ServerRefs}.
 
 %%--------------------------------------------------------------------
@@ -314,6 +310,7 @@ add_pids_to_plist([], State) ->
     {ok, State}.
 
 add_pid_to_plist(OtherPid, State) ->
+    ?TRACE("state is", State),
     Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#state.plist),
     NewPlist = case Exists of
         true ->
@@ -335,6 +332,6 @@ remove_pid_from_plist(OtherPid, State) ->
 broadcast_join_announcement(State) ->
     NotSelfPids   = lists:delete(self(), State#state.plist),
     NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
-    [call(Pid, {{'$gen_cluster', joined_announcement}, State#state.plist}) || Pid <- NotGlobalPids],
+    [call(Pid, {'$gen_cluster', joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
     State.
 

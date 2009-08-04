@@ -122,5 +122,5 @@ handle_leave() ->
 % list of {Node, RegisteredPid}
 % Node will be sent to net_adm:ping
 known_nodes(_State) ->
-    [{localhost, example_cluster_srv}].
+    [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
 
