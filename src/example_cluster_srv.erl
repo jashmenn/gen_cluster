@@ -9,7 +9,7 @@
 
 -compile(export_all).
 
--export([start/0, start_link/1, start_named/1]).
+-export([start/0, start_link/1, start_named/2]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -37,8 +37,8 @@ start() ->
 start_link(Config) ->
     gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
 
-start_named(Name) ->
-    gen_server:start_link({local, Name}, ?MODULE, [], []).
+start_named(Name, Config) ->
+    gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -164,8 +164,9 @@ known_nodes(_State) ->
         {ok, [[Server]]} ->
 	        [{list_to_atom(Server), undefined}];
 	    _ ->
-            case application:get_env(gen_cluster, servers) of
-                {ok, Server} ->
+            case gen_cluster:get_seed_servers() of
+                [Server|Servers] ->
+                  ?TRACE("got seed servers", foo),
                    [{Server, undefined}];
                 _ ->
                   undefined

@@ -3,10 +3,10 @@
 -define(TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
 
 setup() ->
-    {ok, Node1Pid} = example_cluster_srv:start_named(node1),
-    application:set_env(gen_cluster, servers, Node1Pid),
-    {ok, Node2Pid} = example_cluster_srv:start_named(node2),
-    {ok, Node3Pid} = example_cluster_srv:start_named(node3),
+    ?TRACE("seed servers", self()),
+    {ok, Node1Pid} = example_cluster_srv:start_named(node1, {seed, undefined}),
+    {ok, Node2Pid} = example_cluster_srv:start_named(node2, {seed, Node1Pid}),
+    {ok, Node3Pid} = example_cluster_srv:start_named(node3, {seed, Node1Pid}),
     [Node1Pid, Node2Pid, Node3Pid].
 
 teardown(Servers) ->
@@ -19,11 +19,11 @@ node_state_test_() ->
       setup, fun setup/0, fun teardown/1,
       fun () ->
          ?assert(true =:= true),
-         {ok, State1} = gen_cluster:call(node1, {state}),
-         ?TRACE("state", State1),
-         {ok, Plist} = gen_cluster:call(node1, {'$gen_cluster', plist}),
-         ?TRACE("state", Plist),
+         % {ok, Plist} = gen_cluster:call(node1, {'$gen_cluster', plist}),
+         % ?TRACE("state", Plist),
 
+         % {ok, State1} = gen_cluster:call(node1, {state}),
+         % ?TRACE("state", State1),
          % ?assert(is_record(State1, state) =:= true),
          % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),
          {ok}

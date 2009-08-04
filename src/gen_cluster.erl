@@ -52,7 +52,7 @@ behaviour_info(_) ->
     undefined.
 
 %% State data record.
--record(state, {module, state, data, plist}).
+-record(state, {module, state, data, plist, seed}).
 
 %% debugging helper
 -define (TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
@@ -109,7 +109,11 @@ wake_hib(Parent, Name, State, Mod, Debug) ->
 %%--------------------------------------------------------------------
 
 init([Mod, Args]) ->
-    InitialState = #state{module=Mod, plist=[self()]},
+    Seed = case Args of
+        {seed, Value} -> Value;
+        _ -> undefined
+    end,
+    InitialState = #state{module=Mod, plist=[self()], seed=Seed},
     {ok, State1} = join_existing_cluster(InitialState),
     {_Resp, State2} = start_cluster_if_needed(State1),
  
@@ -280,9 +284,7 @@ handle_node_joined_announcement({OtherPid, Tag}, KnownRing, State) ->
 %%--------------------------------------------------------------------
 join_existing_cluster(State) ->
     Mod = State#state.module,
-    ?TRACE("join state", [State, Mod]),
-    Servers = Mod:known_nodes(State#state.state),
-    ?TRACE("servers", Servers),
+    Servers = get_known_nodes(State),
     connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
     NewState = case whereis_global(State) of % join unless we are the main server 
@@ -305,6 +307,7 @@ get_cluster() ->
     todo.
 
 connect_to_servers(ServerNames) ->
+    ?TRACE("servernames", ServerNames),
    ServerRefs = lists:map(fun(Server) ->
       case Server of
       undefined -> 
@@ -312,7 +315,8 @@ connect_to_servers(ServerNames) ->
           skip; % do nothing
       _ -> 
          ?TRACE("connecting to server: ", Server),
-         {Node, _Pid} = Server,
+         % {Node, _Pid} = Server,
+         Node = Server,
          case net_adm:ping(Node) of
              pong ->
                  ok;
@@ -338,10 +342,6 @@ start_cluster_if_needed(State) ->
           {no, State}
     end,
     {{ok, Resp}, NewState}.
-
-
-set_known_servers(KnownServers) ->
-    todo.
 
 whereis_global(State) ->
     global:whereis_name(globally_registered_name(State)).
@@ -393,3 +393,23 @@ broadcast_join_announcement(State) ->
     NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
     [call(Pid, {'$gen_cluster', joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
     State.
+
+% list of Nodes
+% Node will be sent to net_adm:ping
+get_known_nodes(State) ->
+	case init:get_argument(gen_cluster_known) of
+        {ok, [[Server]]} ->
+	        [list_to_atom(Server)];
+	    _ ->
+            case State#state.seed of
+                [Server|Servers] ->
+                  ?TRACE("got seed servers", foo),
+                   [{Server, undefined}];
+                _ ->
+                  [undefined]
+            end
+	end.
+    % [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
+
+
+
