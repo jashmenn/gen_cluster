@@ -5,6 +5,10 @@ Summary
 =======
 `gen_cluster` is an erlang behavior for *pid* clustering. It is a cascading behavior that builds on `gen_server`.
 
+# Status
+
+Early alpha. Feel free to use this in production code as long as you know that nobody else is.
+
 # Motivation
 
 Erlang provides many BIFs for dealing with nodes, node clustering, monitoring
