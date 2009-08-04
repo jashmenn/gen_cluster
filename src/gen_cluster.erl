@@ -213,9 +213,13 @@ handle_cast(Msg, State) ->
 handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
     ?TRACE("received 'DOWN'. Removing node from list. Info:", Info),
     {ok, NewState} = remove_pid_from_plist(Pid, State),
-    Mod = State#state.module,
-    % callback here
-    {noreply, NewState};
+    Mod = NewState#state.module,
+    Pidlist = NewState#state.plist,
+    ExtState = NewState#state.state,
+    {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
+    NewState2 = NewState#state{state=NewExtState},
+    {noreply, NewState2};
+
 handle_info(Info, State) -> 
     Mod = State#state.module,
     Reply =  Mod:handle_info(Info, State),
@@ -238,19 +242,22 @@ handle_cast_info_reply({stop, Reason, ExtState}, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, State) -> 
+terminate(Reason, State) -> 
     Mod = State#state.module,
-    % pass though TODO
+    ExtState = State#state.state,
+    _ = Mod:terminate(Reason, ExtState),
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) -> 
+code_change(OldVsn, State, Extra) -> 
     Mod = State#state.module,
-    % pass through TODO
-    {ok, State}.
+    ExtState = State#state.state,
+    {ok, NewExtState} = Mod:code_change(OldVsn, State, Extra),
+    NewState = State#state{state=NewExtState},
+    {ok, NewState}.
 
 %%--------------------------------------------------------------------
 %% Func: handle_node_joining(OtherNode, State) -> {ok, NewState}
