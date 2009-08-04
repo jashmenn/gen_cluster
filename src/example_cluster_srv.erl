@@ -16,7 +16,7 @@
          code_change/3]).
 
 % gen_cluster callback
--export([foo/0, handle_join/0, handle_leave/0]).
+-export([handle_join/3, handle_leave/4]).
 
 %%====================================================================
 %% API
@@ -111,14 +111,21 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-foo() ->
-    todo.
+%%--------------------------------------------------------------------
+%% Function: handle_join(JoiningPid, Pidlist, State) -> {ok, State} 
+%%     JoiningPid = pid(),
+%%     Pidlist = list() of pids()
+%% Description: Called whenever a node joins the cluster. JoiningPid is the
+%%     node that joined. Note that JoiningPid may join more than once. Pidlist
+%%     contains all known pids. Pidlist includes JoiningPid.
+%%--------------------------------------------------------------------
+handle_join(JoiningPid, Pidlist, State) ->
+    io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+    {ok, State}.
 
-handle_join() ->
-    ok.
-
-handle_leave() ->
-    ok.
+handle_leave(LeavingPid, Pidlist, Info, State) ->
+    io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
+    {ok, State}.
 
 % list of {Node, RegisteredPid}
 % Node will be sent to net_adm:ping

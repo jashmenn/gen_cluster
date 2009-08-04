@@ -11,6 +11,12 @@
 %%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
 %%%   for one "rallying point" for each new node that joins the cluster.
 %%%   If the node holding the rally point fails, a new node will take it over (TODO)
+%%%
+%%% todo:
+%   * cli argument for known server, or have a method that will do it
+%   * access to nodelist
+%   * implement calling back to the module
+%   * unit tests
 %%%-------------------------------------------------------------------
 -module(gen_cluster).
 -include_lib("../include/gen_cluster.hrl").
@@ -37,7 +43,7 @@
 behaviour_info(callbacks) ->
     [
     % gen_cluster
-      {handle_join, 0}, {handle_leave, 0},
+      {handle_join, 2}, {handle_leave, 3},
     % gen_server      
       {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
    ];
@@ -215,7 +221,13 @@ foo() ->
 %%--------------------------------------------------------------------
 handle_node_joining({OtherPid, Tag}, State) ->
     {ok, NewState} = add_pid_to_plist(OtherPid, State),
-    % TODO - addin callback here
+
+    % callback
+    #state{module=Mod, plist=Plist, state=ExtState} = NewState,
+    {ok, NewExtState} = Mod:handle_join(OtherPid, Plist, ExtState),
+
+    % update the external state
+    StateData = NewState#state{state=NewExtState},
     {ok, NewState}.
 
 %%--------------------------------------------------------------------
@@ -326,7 +338,6 @@ add_pids_to_plist([], State) ->
     {ok, State}.
 
 add_pid_to_plist(OtherPid, State) ->
-    ?TRACE("state is", State),
     Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#state.plist),
     NewPlist = case Exists of
         true ->
