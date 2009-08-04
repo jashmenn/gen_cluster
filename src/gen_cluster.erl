@@ -43,7 +43,7 @@
 behaviour_info(callbacks) ->
     [
     % gen_cluster
-      {handle_join, 2}, {handle_leave, 3},
+      {handle_join, 3}, {handle_node_joined, 3}, {handle_leave, 4},
     % gen_server      
       {init,1}, {handle_call,3},{handle_cast,2},{handle_info,2}, {terminate,2},{code_change,3}
    ];
@@ -143,13 +143,12 @@ init([Mod, Args]) ->
 handle_call({'$gen_cluster', join}, From, State) ->
     ?TRACE("$gen_cluster join", State),
     {ok, NewState} = handle_node_joining(From, State),
-    ?TRACE("join ok", NewState),
     Reply = {ok, NewState#state.plist},
     {reply, Reply, NewState};
 
 handle_call({'$gen_cluster', joined_announcement, KnownRing}, _From, State) ->
-    {ok, NewState} = handle_node_joined_announcement(KnownRing, State),
-    ?TRACE("rec'd nodejoin join announcement", NewState),
+    ?TRACE("$gen_cluster joined_announcement", State),
+    {ok, NewState} = handle_node_joined_announcement(From, KnownRing, State),
     Reply = {ok, NewState#state.plist},
     {reply, Reply, NewState};
 
@@ -158,18 +157,8 @@ handle_call({'$gen_cluster', plist}, _From, State) ->
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) -> 
+    % pass through here TODO
     {reply, todo_reply, State}.
-
-% e.g.
-% handle_call({create_ring}, _From, State) ->
-%     {Reply, NewState} = handle_create_ring(State),
-%     {reply, Reply, NewState};
-%
-% handle_call({join, OtherNode}, _From, State) ->
-%     {Reply, NewState} = handle_join(OtherNode, State),
-%     {reply, Reply, NewState};
-% ...
-% etc.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -178,6 +167,7 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) -> 
+    % pass through, TODO
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -192,6 +182,7 @@ handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
     ?TRACE("NewState is:", NewState),
     {noreply, NewState};
 handle_info(_Info, State) -> 
+    % pass through TODO
     {noreply, State}.
 
 
@@ -203,6 +194,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) -> 
+    % pass though TODO
     ok.
 
 %%--------------------------------------------------------------------
@@ -210,10 +202,8 @@ terminate(_Reason, _State) ->
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) -> 
+    % pass through TODO
     {ok, State}.
-
-foo() ->
-    todo.
 
 %%--------------------------------------------------------------------
 %% Func: handle_node_joining(OtherNode, State) -> {ok, NewState}
@@ -228,19 +218,29 @@ handle_node_joining({OtherPid, Tag}, State) ->
 
     % update the external state
     StateData = NewState#state{state=NewExtState},
-    {ok, NewState}.
+    {ok, StateData}.
 
 %%--------------------------------------------------------------------
 %% Func: handle_node_joined_announcement(KnownRing, State) -> {ok, NewState}
 %% Description: When a node joins a known server, it then broadcasts to all
-%% other servers that it joined.  % It tells all other servers about the entire
-%% pidlist it received from the known node. This is a check to make sure % that
+%% other servers that it joined. It tells all other servers about the entire
+%% pidlist it received from the known node. This is a check to make sure that
 %% everytime a node joins all the other nodes know about it as well as every
 %% other node in the cluster.
+%% 
+%% TODO, consider removing this method entirely
 %%--------------------------------------------------------------------
-handle_node_joined_announcement(KnownRing, State) ->
+handle_node_joined_announcement({OtherPid, Tag}, KnownRing, State) ->
     {ok, NewState} = add_pids_to_plist(KnownRing, State),
-    {ok, NewState}.
+
+    % callback
+    #state{module=Mod, plist=Plist, state=ExtState} = NewState,
+    {ok, NewExtState} = Mod:handle_node_joined(OtherPid, Plist, ExtState),
+
+    % update the external state
+    StateData = NewState#state{state=NewExtState},
+
+    {ok, StateData}.
 
 %%--------------------------------------------------------------------
 %% Func: join_existing_cluster(State) -> {ok, NewState} | false
