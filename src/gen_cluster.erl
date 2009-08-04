@@ -158,15 +158,34 @@ handle_call({'$gen_cluster', plist}, _From, State) ->
 
 handle_call(Request, From, State) -> 
     Mod = State#state.module,
-    % Reply = Mod:handle_call(Request, From, State),
-    ok.
-     
+    ExtState = State#state.state,
+    Reply = Mod:handle_call(Request, From, ExtState),
+    handle_call_reply(Reply, From, State).
 
-    % pass through here TODO
-    % {reply, todo_reply, State}.
+% handle the replies by updating and substituting our own state
+handle_call_reply({reply, Reply, ExtState}, From, State) ->
+    NewState = State#state{state=ExtState},
+    {reply, Reply, NewState};
 
-% delegate(Mod, Method, Args, State) ->
-%     todo.
+handle_call_reply({reply, Reply, ExtState, Timeout}, From, State) ->
+    NewState = State#state{state=ExtState},
+    {reply, Reply, NewState, Timeout};
+
+handle_call_reply({noreply, ExtState}, From, State)  ->
+    NewState = State#state{state=ExtState},
+    {noreply, NewState};
+
+handle_call_reply({noreply, ExtState, Timeout}, From, State) ->
+    NewState = State#state{state=ExtState},
+    {noreply, NewState, Timeout};
+
+handle_call_reply({stop, Reason, Reply, ExtState}, From, State)  ->
+    NewState = State#state{state=ExtState},
+    {stop, Reason, Reply, NewState};
+
+handle_call_reply({stop, Reason, ExtState}, From, State) ->
+    NewState = State#state{state=ExtState},
+    {stop, Reason, NewState}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -196,7 +215,6 @@ handle_info(_Info, State) ->
     Mod = State#state.module,
     % pass through TODO
     {noreply, State}.
-
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
