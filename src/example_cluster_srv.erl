@@ -48,6 +48,7 @@ start_link(Config) ->
 %%--------------------------------------------------------------------
 
 init(Args) -> 
+    io:format(user, "TRACE ~p:~p called example init~n", [?MODULE, ?LINE]),
     {ok, todo_state}.
 
 %%--------------------------------------------------------------------

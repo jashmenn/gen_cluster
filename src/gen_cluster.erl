@@ -108,16 +108,20 @@ init([Mod, Args]) ->
     {_Resp, State2} = start_cluster_if_needed(State1),
  
     case Mod:init(Args) of
+        {ok, ExtState} ->
+            StateData = State2#state{module = Mod, state = ExtState},
+            {ok, StateData};
         {ok, ExtStateName, ExtStateData} -> 
             StateData = State2#state{module = Mod, state = ExtStateName, data = ExtStateData},
-            {ok, state, StateData};
+            {ok, StateData};
         {ok, ExtStateName, ExtStateData, Timeout} ->
             StateData = State2#state{module = Mod, state = ExtStateName, data = ExtStateData},
-            {ok, state, StateData, Timeout};
+            {ok, StateData, Timeout};
         {stop, Reason} ->
             {stop, Reason};
         Other ->
-            Other % double check this one
+          ?TRACE("got other:", Other),
+          exit(bad_gen_cluster_init_call) % hmmm
     end.
 
 %%--------------------------------------------------------------------
@@ -131,6 +135,7 @@ init([Mod, Args]) ->
 %%--------------------------------------------------------------------
 
 handle_call({'$gen_cluster', join}, From, State) ->
+    ?TRACE("$gen_cluster join", State),
     {ok, NewState} = handle_node_joining(From, State),
     ?TRACE("join ok", NewState),
     Reply = {ok, NewState#state.plist},
@@ -235,7 +240,8 @@ join_existing_cluster(State) ->
             State;
         _ ->
             ?TRACE("joining server...", whereis_global(State)),
-            {ok, KnownPlist} = call({global, globally_registered_name(State)}, {'$gen_cluster', join}),
+            ?TRACE("join state", [State, Mod]),
+            {ok, KnownPlist} = gen_cluster:call({global, globally_registered_name(State)}, {'$gen_cluster', join}),
             {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
             broadcast_join_announcement(NewInformedState)
     end,
