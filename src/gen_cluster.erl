@@ -147,6 +147,10 @@ handle_call({'$gen_cluster', joined_announcement, KnownRing}, _From, State) ->
     Reply = {ok, NewState#state.plist},
     {reply, Reply, NewState};
 
+handle_call({'$gen_cluster', plist}, _From, State) ->
+    Reply = {ok, State#state.plist},
+    {reply, Reply, State};
+
 handle_call(_Request, _From, State) -> 
     {reply, todo_reply, State}.
 
@@ -176,8 +180,14 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
+    ?TRACE("received 'DOWN'. Removing node from list. info was:", Info),
+    {ok, NewState} = remove_pid_from_plist(Pid, State),
+    ?TRACE("NewState is:", NewState),
+    {noreply, NewState};
 handle_info(_Info, State) -> 
     {noreply, State}.
+
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -340,4 +350,3 @@ broadcast_join_announcement(State) ->
     NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
     [call(Pid, {'$gen_cluster', joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
     State.
-
