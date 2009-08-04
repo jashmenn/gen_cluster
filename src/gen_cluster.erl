@@ -191,18 +191,18 @@ handle_call_reply({stop, Reason, ExtState}, From, State) ->
     NewState = State#state{state=ExtState},
     {stop, Reason, NewState}.
 
+% handle Other?
+
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) -> 
-    % Mod = State#state.module,
-    % ?TRACE("handling cast in gen cluster", []),
-    % ok = bad,
-    % pass through, TODO
-    {noreply, State}.
+handle_cast(Msg, State) -> 
+    Mod = State#state.module,
+    Reply = Mod:handle_cast(Msg, State),
+    handle_cast_info_reply(Reply, State).
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -214,11 +214,22 @@ handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
     ?TRACE("received 'DOWN'. Removing node from list. Info:", Info),
     {ok, NewState} = remove_pid_from_plist(Pid, State),
     Mod = State#state.module,
+    % callback here
     {noreply, NewState};
-handle_info(_Info, State) -> 
+handle_info(Info, State) -> 
     Mod = State#state.module,
-    % pass through TODO
-    {noreply, State}.
+    Reply =  Mod:handle_info(Info, State),
+    handle_cast_info_reply(Reply, State).
+
+handle_cast_info_reply({noreply, ExtState}, State) ->
+    NewState = State#state{state=ExtState},
+    {noreply, NewState};
+handle_cast_info_reply({noreply, ExtState, Timeout}, State) ->
+    NewState = State#state{state=ExtState},
+    {noreply, NewState, Timeout};
+handle_cast_info_reply({stop, Reason, ExtState}, State) ->
+    NewState = State#state{state=ExtState},
+    {stop, Reason, NewState}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -302,9 +313,6 @@ join_existing_cluster(State) ->
             broadcast_join_announcement(NewInformedState)
     end,
     {ok, NewState}.
-
-get_cluster() ->
-    todo.
 
 connect_to_servers(ServerNames) ->
     ?TRACE("servernames", ServerNames),

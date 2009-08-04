@@ -157,22 +157,3 @@ handle_leave(LeavingPid, Pidlist, Info, State) ->
     io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
     {ok, State}.
 
-% list of {Node, RegisteredPid}
-% Node will be sent to net_adm:ping
-known_nodes(_State) ->
-	case init:get_argument(gen_cluster_known) of
-        {ok, [[Server]]} ->
-	        [{list_to_atom(Server), undefined}];
-	    _ ->
-            case gen_cluster:get_seed_servers() of
-                [Server|Servers] ->
-                  ?TRACE("got seed servers", foo),
-                   [{Server, undefined}];
-                _ ->
-                  undefined
-            end
-	end.
-    % [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
-
-
-
