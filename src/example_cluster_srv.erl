@@ -17,6 +17,7 @@
 
 % gen_cluster callback
 -export([handle_join/3, handle_node_joined/3, handle_leave/4]).
+
 -define(TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
 -record(state, {name, pid, timestamp}).
 

@@ -1,1 +1,48 @@
-Your app description
+gen_cluster
+===========
+
+Summary
+=======
+`gen_cluster` is an erlang behavior for *pid* clustering. It is a cascading behavior that builds on `gen_server`.
+
+# Motivation
+
+Erlang provides many BIFs for dealing with nodes, node clustering, monitoring
+etc. However, one often wants to build a cluster of _processes_ rather than
+entire nodes. 
+
+This module is a starting point for creating your own `gen_server` clusters. It
+aims to deal with common roles, actions, and callbacks one often deals with
+when making a cluster. 
+
+# Features
+
+Current features include:
+
+* Joining a cluster based on a given `seed` node
+* Storing the list of all current nodes in the cluster
+* Callbacks when a node joins or leaves
+
+# Usage
+
+Add the `behaviour` directive to your module, implement the callbacks for both `gen_server` and `gen_cluster`. See `example_cluster_srv.erl` for full example and function signatures. 
+
+    -behaviour(gen_cluster).
+
+    % gen_server callbacks
+    -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+
+    % gen_cluster callback
+    -export([handle_join/3, handle_node_joined/3, handle_leave/4]).
+
+# Plans
+
+(features not yet implemented)
+
+* TCP-layer option, rather than straight distributed erlang
+* Possible integration with [Chordjerl](http://github.com/jashmenn/chordjerl/tree)
+
+# Authors
+
+* Nate Murray \<nmurray [AT] attinteractive.com\> [github](http://github.com/jashmenn)
+* Ari Lerner [github](http://github.com/auser)

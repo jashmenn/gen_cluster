@@ -25,6 +25,7 @@ node_state_test_() ->
       fun () ->
          ?assert(true =:= true),
          {ok, Plist} = gen_cluster:call(node1, {'$gen_cluster', plist}),
+         ?assertEqual(3, length(Plist)),
          {ok, State1} = gen_cluster:call(node1, {state}),
          % ?assert(is_record(State1, state) =:= true),
          % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),

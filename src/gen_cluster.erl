@@ -190,8 +190,7 @@ handle_call_reply({stop, Reason, Reply, ExtState}, From, State)  ->
 handle_call_reply({stop, Reason, ExtState}, From, State) ->
     NewState = State#state{state=ExtState},
     {stop, Reason, NewState}.
-
-% handle Other?
+    % handle Other?
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -302,7 +301,7 @@ handle_node_joined_announcement({OtherPid, Tag}, KnownRing, State) ->
 %%--------------------------------------------------------------------
 join_existing_cluster(State) ->
     Mod = State#state.module,
-    Servers = get_known_nodes(State),
+    Servers = get_seed_nodes(State),
     connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
     NewState = case whereis_global(State) of % join unless we are the main server 
@@ -330,7 +329,6 @@ connect_to_servers(ServerNames) ->
           skip; % do nothing
       _ -> 
          ?TRACE("connecting to server: ", Server),
-         % {Node, _Pid} = Server,
          Node = Server,
          case net_adm:ping(Node) of
              pong ->
@@ -411,11 +409,11 @@ broadcast_join_announcement(State) ->
 
 % list of Nodes
 % Node will be sent to net_adm:ping
-get_known_nodes(State) ->
-	case init:get_argument(gen_cluster_known) of
+get_seed_nodes(State) ->
+    case init:get_argument(gen_cluster_known) of
         {ok, [[Server]]} ->
-	        [list_to_atom(Server)];
-	    _ ->
+            [list_to_atom(Server)];
+       _ ->
             case State#state.seed of
                 [Server|Servers] ->
                   ?TRACE("got seed servers", foo),
@@ -423,8 +421,4 @@ get_known_nodes(State) ->
                 _ ->
                   [undefined]
             end
-	end.
-    % [{list_to_atom("example_cluster_srv1@" ++ net_adm:localhost()), example_cluster_srv}].
-
-
-
+    end.
