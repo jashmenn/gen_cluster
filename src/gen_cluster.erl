@@ -11,12 +11,6 @@
 %%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
 %%%   for one "rallying point" for each new node that joins the cluster.
 %%%   If the node holding the rally point fails, a new node will take it over (TODO)
-%%%
-%%% todo:
-%   * cli argument for known server, or have a method that will do it
-%   * access to nodelist
-%   * implement calling back to the module
-%   * unit tests
 %%%-------------------------------------------------------------------
 -module(gen_cluster).
 -include_lib("../include/gen_cluster.hrl").
