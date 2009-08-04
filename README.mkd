@@ -19,6 +19,9 @@ This module is a starting point for creating your own `gen_server` clusters. It
 aims to deal with common roles, actions, and callbacks one often deals with
 when making a cluster. 
 
+The goal is for `gen_cluster` to provide the foundation for other cluster-based
+erlang projects such as a distributed mutex or distributed elections.
+
 # Features
 
 Current features include:
