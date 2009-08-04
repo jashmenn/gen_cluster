@@ -39,10 +39,29 @@ Add the `behaviour` directive to your module, implement the callbacks for both `
     % gen_cluster callback
     -export([handle_join/3, handle_node_joined/3, handle_leave/4]).
 
+# Try it out
+
+Open up three terminals and do the following commands. This will start up three
+nodes that will join the first node. On `q().` of any one of the nodes the
+other two will see that the node left and update the pidlist accordingly.
+
+    # term 1
+    rake server:start1
+
+    # term 2
+    rake server:start2
+
+    # term 3
+    rake server:start3
+
+    # term 2 again
+    q().
+
 # Plans
 
 (features not yet implemented)
 
+* Globally registered name needs to be taken over by another node if the globally registered node dies. This is an important TODO and will be handled shortly. 
 * TCP-layer option, rather than straight distributed erlang
 * Possible integration with [Chordjerl](http://github.com/jashmenn/chordjerl/tree)
 

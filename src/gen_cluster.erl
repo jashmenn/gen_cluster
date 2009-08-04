@@ -10,7 +10,9 @@
 %%% * registers one global pid in the format of "gen_cluster_" ++
 %%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
 %%%   for one "rallying point" for each new node that joins the cluster.
-%%%   If the node holding the rally point fails, a new node will take it over (TODO)
+%%%
+%%% TODO:
+%%% * If the node holding the rally point fails, a new node needs to take over the registered name
 %%%-------------------------------------------------------------------
 -module(gen_cluster).
 -include_lib("../include/gen_cluster.hrl").
