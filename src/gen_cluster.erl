@@ -200,7 +200,8 @@ handle_call_reply({stop, Reason, ExtState}, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) -> 
     Mod = State#state.module,
-    Reply = Mod:handle_cast(Msg, State),
+    ExtState = State#state.state,
+    Reply = Mod:handle_cast(Msg, ExtState),
     handle_cast_info_reply(Reply, State).
 
 %%--------------------------------------------------------------------
