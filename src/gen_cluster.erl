@@ -36,6 +36,9 @@
 %% Define the behaviour's required callbacks.
 -export([behaviour_info/1]).
 
+%% Helper functions
+-export([plist/1]).
+
 behaviour_info(callbacks) ->
     [
     % gen_cluster
@@ -96,6 +99,9 @@ enter_loop(Mod, Options, State, ServerName, Timeout) ->
     gen_server:enter_loop(Mod, Options, State, ServerName, Timeout).
 wake_hib(Parent, Name, State, Mod, Debug) ->
     gen_server:wake_hib(Parent, Name, State, Mod, Debug).
+
+plist(PidRef) -> % {ok, Plist}
+    call(PidRef, {'$gen_cluster', plist}).
 
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |
