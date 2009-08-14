@@ -216,19 +216,27 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
+handle_info({'DOWN', MonitorRef, process, Pid, Info}, State) ->
     ?TRACE("received 'DOWN'. Removing node from list. Info:", Info),
-    {ok, NewState} = remove_pid_from_plist(Pid, State),
-    Mod = NewState#state.module,
-    Pidlist = NewState#state.plist,
-    ExtState = NewState#state.state,
-    {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
-    NewState2 = NewState#state{state=NewExtState},
-    {noreply, NewState2};
+    ExtState = State#state.state,
+    Mod = State#state.module,
+
+    case does_pid_exist_in_plist(Pid, State) of
+        true ->
+            {ok, NewState2} = remove_pid_from_plist(Pid, State),
+            Pidlist = NewState2#state.plist,
+            {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
+            NewState3 = NewState2#state{state=NewExtState},
+            {noreply, NewState3};
+        false ->
+            Reply = Mod:handle_info({'DOWN', MonitorRef, process, Pid, Info}, State),
+            handle_cast_info_reply(Reply, State)
+    end;
 
 handle_info(Info, State) -> 
     Mod = State#state.module,
-    Reply =  Mod:handle_info(Info, State),
+    ExtState = State#state.state,
+    Reply = Mod:handle_info(Info, ExtState),
     handle_cast_info_reply(Reply, State).
 
 handle_cast_info_reply({noreply, ExtState}, State) ->
@@ -390,8 +398,8 @@ add_pids_to_plist([], State) ->
     {ok, State}.
 
 add_pid_to_plist(OtherPid, State) ->
-    Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#state.plist),
-    NewPlist = case Exists of
+    % Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#state.plist),
+    NewPlist = case does_pid_exist_in_plist(OtherPid, State) of
         true ->
           State#state.plist;
         false ->
@@ -402,6 +410,9 @@ add_pid_to_plist(OtherPid, State) ->
     end,
     NewState  = State#state{plist=NewPlist},
     {ok, NewState}.
+
+does_pid_exist_in_plist(OtherPid, State) -> % bool() 
+    lists:any(fun(Elem) -> Elem =:= OtherPid end, State#state.plist).
 
 remove_pid_from_plist(OtherPid, State) ->
     NewPlist = lists:delete(OtherPid, State#state.plist),
