@@ -229,7 +229,7 @@ handle_info({'DOWN', MonitorRef, process, Pid, Info}, State) ->
             NewState3 = NewState2#state{state=NewExtState},
             {noreply, NewState3};
         false ->
-            Reply = Mod:handle_info({'DOWN', MonitorRef, process, Pid, Info}, State),
+            Reply = Mod:handle_info({'DOWN', MonitorRef, process, Pid, Info}, ExtState),
             handle_cast_info_reply(Reply, State)
     end;
 
