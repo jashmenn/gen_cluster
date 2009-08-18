@@ -5,3 +5,4 @@ html
 .autosession.vim
 .DS_Store
 README.html
+.gen_cluster_session.vim
