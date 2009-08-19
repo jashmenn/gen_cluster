@@ -24,7 +24,7 @@ node_state_test_() ->
       setup, fun setup/0, fun teardown/1,
       fun () ->
          ?assert(true =:= true),
-         {ok, Plist} = gen_cluster:call(node1, {'$gen_cluster', plist}),
+         {ok, Plist} = gen_cluster:plist(node1),
          ?assertEqual(3, length(Plist)),
          {ok, State1} = gen_cluster:call(node1, {state}),
          % ?assert(is_record(State1, state) =:= true),

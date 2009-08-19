@@ -1,3 +1,4 @@
+require "rubygems"
 require "skelerl"
 Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}
 
@@ -33,7 +34,13 @@ end
 
 remove_task :compile
 task :compile do
-  sh "#{erl} -pa #{ebin_dirs} -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'", :verbose => true
+  sh "#{erl} -pa #{ebin_dirs.join(" -pa ")} -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'", :verbose => true
+end
+
+desc "Run the tests"
+task :run_tests do
+  puts "TESTS"
+  sh "#{erl} -pa #{ebin_dirs.join(" -pa ")} -s eunit_example_cluster_srv test -s init stop -noshell"
 end
 
 task :default => [:compile]
