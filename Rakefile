@@ -39,7 +39,6 @@ end
 
 desc "Run the tests"
 task :run_tests do
-  puts "TESTS"
   sh "#{erl} -pa #{ebin_dirs.join(" -pa ")} -s eunit_example_cluster_srv test -s init stop -noshell"
 end
 
