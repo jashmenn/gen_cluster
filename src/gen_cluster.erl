@@ -428,15 +428,24 @@ broadcast_join_announcement(State) ->
 % list of Nodes
 % Node will be sent to net_adm:ping
 get_seed_nodes(State) ->
-    case init:get_argument(gen_cluster_known) of
+    Servers = [],
+    Mod = State#state.module,
+    ExtState = State#state.state,
+    Servers1 = case erlang:function_exported(Mod, seed_nodes, 1) of
+        true -> lists:append([Mod:seed_nodes(ExtState), Servers]);
+        false -> Servers
+    end,
+
+    Servers2 = case init:get_argument(gen_cluster_known) of
         {ok, [[Server]]} ->
-            [list_to_atom(Server)];
-       _ ->
+            lists:append([list_to_atom(Server), Servers1]);
+         _ ->
             case State#state.seed of
                 [Server|_Servers] ->
-                  ?TRACE("got seed servers", foo),
-                   [{Server, undefined}];
+                   % [{Server, undefined}]; % ??
+                   [Server|Servers1]; % ??
                 _ ->
-                  [undefined]
+                 Servers1 
             end
-    end.
+    end,
+    Servers2.
