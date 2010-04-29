@@ -15,11 +15,13 @@ teardown(Servers) ->
         Pid = whereis(Pname),
         io:format(user, "takedown: ~p ~p ~n", [Pname, Pid]),
         gen_cluster:cast(Pid, stop), 
-        unregister(Pname)
+        try unregister(Pname)
+        catch _:_ -> ok
+        end
      end, Servers),
     ok.
 
-node_state_test_() ->
+node_state_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -33,7 +35,7 @@ node_state_test_() ->
       end
   }.
 
-node_join_test_() ->
+node_join_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -42,7 +44,30 @@ node_join_test_() ->
       end
   }.
 
-% node_leave_test_() ->
+node_global_takeover_test_() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         Node1Pid = whereis(node1),
+         {ok, Name1} = gen_cluster:call(Node1Pid, {'$gen_cluster', globally_registered_name}),
+
+         GlobalPid1 = global:whereis_name(Name1),
+         ?assert(is_process_alive(GlobalPid1)),
+
+         gen_cluster:cast(Node1Pid, stop),
+         timer:sleep(500),
+
+         GlobalPid2 = global:whereis_name(Name1),
+         ?assert(GlobalPid1 =/= GlobalPid2),
+         ?assert(is_process_alive(GlobalPid2)),
+
+         {ok, Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
+
+         {ok}
+      end
+  }.
+
+% node_leave_test_not() ->
 %   {
 %       setup, fun setup/0,
 %       fun () ->

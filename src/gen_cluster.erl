@@ -10,8 +10,6 @@
 %%% * registers one global pid in the format of "gen_cluster_" ++
 %%%   atom_to_list(Mod) where Mod is the module using gen_cluster. This allows
 %%%   for one "rallying point" for each new node that joins the cluster.
-%%%
-%%% TODO:
 %%% * If the node holding the rally point fails, a new node needs to take over the registered name
 %%%-------------------------------------------------------------------
 -module(gen_cluster).
@@ -166,6 +164,10 @@ handle_call({'$gen_cluster', plist}, _From, State) ->
     Reply = {ok, State#state.plist},
     {reply, Reply, State};
 
+handle_call({'$gen_cluster', globally_registered_name}, _From, State) ->
+    Reply = {ok, globally_registered_name(State)},
+    {reply, Reply, State};
+
 handle_call(Request, From, State) -> 
     Mod = State#state.module,
     ExtState = State#state.state,
@@ -226,14 +228,17 @@ handle_info({'DOWN', MonitorRef, process, Pid, Info}, State) ->
             {ok, NewState2} = remove_pid_from_plist(Pid, State),
             Pidlist = NewState2#state.plist,
             {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
-            NewState3 = NewState2#state{state=NewExtState},
-            {noreply, NewState3};
+            NewState3 = take_over_globally_registered_name_if_needed(NewState2),
+            % NewState3 = NewState2,
+            NewState4 = NewState3#state{state=NewExtState},
+            {noreply, NewState4};
         false ->
             Reply = Mod:handle_info({'DOWN', MonitorRef, process, Pid, Info}, ExtState),
             handle_cast_info_reply(Reply, State)
     end;
 
 handle_info(Info, State) -> 
+    ?TRACE("got other INFO", val),
     Mod = State#state.module,
     ExtState = State#state.state,
     Reply = Mod:handle_info(Info, ExtState),
@@ -387,6 +392,7 @@ globally_registered_name(State) ->
 %% joining
 %%--------------------------------------------------------------------
 start_cluster(State) ->
+    global:sync(), % otherwise we may not see the other pids yet
     ?TRACE("Starting server:", globally_registered_name(State)),
     RegisterResp = global:register_name(globally_registered_name(State), self()),
     {RegisterResp, State}.
@@ -425,6 +431,24 @@ broadcast_join_announcement(State) ->
     [call(Pid, {'$gen_cluster', joined_announcement, State#state.plist}) || Pid <- NotGlobalPids],
     State.
 
+take_over_globally_registered_name_if_needed(State) -> % NewState
+    case need_to_take_over_globally_registered_name(State) of
+        true -> 
+            {YesNo, NewState} = start_cluster(State),  
+            NewState;
+        false -> State
+    end. 
+
+need_to_take_over_globally_registered_name(State) -> % bool()
+    case whereis_global(State) of
+        undefined -> true;
+        Pid ->  
+            case is_process_alive(Pid) of
+                true -> false;
+                false -> true
+            end
+    end.
+
 % list of Nodes
 % Node will be sent to net_adm:ping
 get_seed_nodes(State) ->
@@ -448,4 +472,17 @@ get_seed_nodes(State) ->
                  Servers1 
             end
     end,
-    Servers2.
+    % file should be of the format
+    %
+    % "node@nohost".
+    % "foo@bar".
+    Servers3 = case os:getenv("GEN_CLUSTER_SEED_CONFIG") of
+        false -> [];
+        File ->
+            case file:consult(File) of
+                {ok, Terms} -> lists:append(Servers2, Terms);
+                _ -> Servers2
+            end
+    end,
+
+    Servers3.
