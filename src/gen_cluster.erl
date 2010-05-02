@@ -49,7 +49,14 @@ behaviour_info(_) ->
     undefined.
 
 %% State data record.
--record(state, {module, state, data, plist, seed}).
+-record(state, {
+  module,       % module name started
+  state,        % mod's state
+  data,         % user mod's data
+  seed,         % seed
+  local_plist,  % local proplist of pids
+  leader_pid    % pid of the leader process
+}).
 
 %% debugging helper
 -define (DEBUG, false).
@@ -72,34 +79,34 @@ start_link(Name, Mod, Args, Options) ->
 
 %% Delegate the rest of the reqests to gen_server
 call(Name, Request) ->
-    gen_server:call(Name, Request).
+  gen_server:call(Name, Request).
 call(Name, Request, Timeout) ->
-   gen_server:call(Name, Request, Timeout).
+ gen_server:call(Name, Request, Timeout).
 cast(Name, Request) ->
-    gen_server:cast(Name, Request).
+  gen_server:cast(Name, Request).
 reply(To, Reply) ->
-    gen_server:reply(To, Reply).
+  gen_server:reply(To, Reply).
 abcast(Name, Request) ->
-    gen_server:abcast(Name, Request).
+  gen_server:abcast(Name, Request).
 abcast(Nodes, Name, Request) ->
-    gen_server:abcast(Nodes, Name, Request).
+  gen_server:abcast(Nodes, Name, Request).
 multi_call(Name, Req) ->
-    gen_server:multi_call(Name, Req).
+  gen_server:multi_call(Name, Req).
 multi_call(Nodes, Name, Req)  ->
-    gen_server:multi_call(Nodes, Name, Req).
+  gen_server:multi_call(Nodes, Name, Req).
 multi_call(Nodes, Name, Req, Timeout)  ->
-    gen_server:multi_call(Nodes, Name, Req, Timeout).
+  gen_server:multi_call(Nodes, Name, Req, Timeout).
 enter_loop(Mod, Options, State) ->
-    gen_server:enter_loop(Mod, Options, State).
+  gen_server:enter_loop(Mod, Options, State).
 enter_loop(Mod, Options, State, Timeout) ->
-    gen_server:enter_loop(Mod, Options, State, Timeout).
+  gen_server:enter_loop(Mod, Options, State, Timeout).
 enter_loop(Mod, Options, State, ServerName, Timeout) ->
-    gen_server:enter_loop(Mod, Options, State, ServerName, Timeout).
+  gen_server:enter_loop(Mod, Options, State, ServerName, Timeout).
 wake_hib(Parent, Name, State, Mod, Debug) ->
-    gen_server:wake_hib(Parent, Name, State, Mod, Debug).
+  gen_server:wake_hib(Parent, Name, State, Mod, Debug).
 
 plist(PidRef) -> % {ok, Plist}
-    call(PidRef, {'$gen_cluster', plist}).
+  call(PidRef, {'$gen_cluster', plist}).
 
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |
@@ -113,30 +120,30 @@ plist(PidRef) -> % {ok, Plist}
 %%--------------------------------------------------------------------
 
 init([Mod, Args]) ->
-    Seed = case Args of
-        {seed, Value} -> Value;
-        _ -> undefined
-    end,
-    InitialState = #state{module=Mod, plist=[self()], seed=Seed},
-    {ok, State1} = join_existing_cluster(InitialState),
-    {_Resp, State2} = start_cluster_if_needed(State1),
- 
-    case Mod:init(Args) of
-        {ok, ExtState} ->
-            StateData = State2#state{module = Mod, state = ExtState},
-            {ok, StateData};
-        {ok, ExtStateName, ExtStateData} -> 
-            StateData = State2#state{module = Mod, state = ExtStateName, data = ExtStateData},
-            {ok, StateData};
-        {ok, ExtStateName, ExtStateData, Timeout} ->
-            StateData = State2#state{module = Mod, state = ExtStateName, data = ExtStateData},
-            {ok, StateData, Timeout};
-        {stop, Reason} ->
-            {stop, Reason};
-        Other ->
-          ?TRACE("got other:", Other),
-          exit(bad_gen_cluster_init_call) % hmmm
-    end.
+  Seed = case Args of
+    {seed, Value} -> Value;
+    _ -> undefined
+  end,
+  InitialState = #state{module=Mod, local_plist=[{Mod, [self()]}], seed=Seed},
+  {ok, State1} = join_existing_cluster(InitialState),
+  {_Resp, State2} = start_cluster_if_needed(State1),
+
+  case Mod:init(Args) of
+    {ok, ExtState} ->
+      StateData = State2#state{module = Mod, state = ExtState},
+      {ok, StateData};
+    {ok, ExtStateName, ExtStateData} -> 
+      StateData = State2#state{module = Mod, state = ExtStateName, data = ExtStateData},
+      {ok, StateData};
+    {ok, ExtStateName, ExtStateData, Timeout} ->
+      StateData = State2#state{module = Mod, state = ExtStateName, data = ExtStateData},
+      {ok, StateData, Timeout};
+    {stop, Reason} ->
+      {stop, Reason};
+    Other ->
+      ?TRACE("got other:", Other),
+      exit(bad_gen_cluster_init_call) % hmmm
+  end.
 
 %%--------------------------------------------------------------------
 %% Function:  handle_call(Request, From, State) -> {reply, Reply, State} |
