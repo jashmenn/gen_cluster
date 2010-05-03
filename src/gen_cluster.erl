@@ -35,7 +35,10 @@
 -export([behaviour_info/1]).
 
 %% Helper functions
--export([plist/1]).
+-export([
+  mod_plist/2,
+  plist/1
+]).
 
 behaviour_info(callbacks) ->
     [
@@ -59,23 +62,19 @@ behaviour_info(_) ->
 }).
 
 %% debugging helper
--define (DEBUG, false).
--define (TRACE(X, M), case ?DEBUG of
-  true -> io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M]);
-  false -> ok
-end).
+-include ("debugger.hrl").
 
 %% Users will use these start functions instead of gen_server's.
 %% We add the user's module name to the arguments and call
 %% server's start function with our module name instead.
 start(Mod, Args, Options) ->
-    gen_server:start(?MODULE, [Mod, Args], Options).
+  gen_server:start(?MODULE, [Mod, Args], Options).
 start(Name, Mod, Args, Options) ->
-    gen_server:start(Name, ?MODULE, [Mod, Args], Options).
+  gen_server:start(Name, ?MODULE, [Mod, Args], Options).
 start_link(Mod, Args, Options) ->
-    gen_server:start(?MODULE, [Mod, Args], Options).
+  gen_server:start(?MODULE, [Mod, Args], Options).
 start_link(Name, Mod, Args, Options) ->
-    gen_server:start(Name, ?MODULE, [Mod, Args], Options).
+  gen_server:start(Name, ?MODULE, [Mod, Args], Options).
 
 %% Delegate the rest of the reqests to gen_server
 call(Name, Request) ->
@@ -105,6 +104,8 @@ enter_loop(Mod, Options, State, ServerName, Timeout) ->
 wake_hib(Parent, Name, State, Mod, Debug) ->
   gen_server:wake_hib(Parent, Name, State, Mod, Debug).
 
+mod_plist(Type, PidRef) ->
+  call(PidRef, {'$gen_cluster', mod_plist, Type}).
 plist(PidRef) -> % {ok, Plist}
   call(PidRef, {'$gen_cluster', plist}).
 
@@ -120,13 +121,13 @@ plist(PidRef) -> % {ok, Plist}
 %%--------------------------------------------------------------------
 
 init([Mod, Args]) ->
-  Seed = case Args of
-    {seed, Value} -> Value;
-    _ -> undefined
-  end,
+  Seed = proplists:get_value(seed, Args, undefined),
+  ?TRACE("Starting seed", Seed),
   InitialState = #state{module=Mod, local_plist=[{Mod, [self()]}], seed=Seed},
   {ok, State1} = join_existing_cluster(InitialState),
   {_Resp, State2} = start_cluster_if_needed(State1),
+  
+  ?TRACE("Starting state", State2),
 
   case Mod:init(Args) of
     {ok, ExtState} ->
@@ -155,9 +156,9 @@ init([Mod, Args]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 % This join call is called when
-handle_call({'$gen_cluster', join}, From, #state{module = Mod} = State) ->
+handle_call({'$gen_cluster', join, OtherPlist}, From, State) ->
   ?TRACE("$gen_cluster join", State),
-  {ok, NewState} = handle_node_joining(Mod, From, State),
+  {ok, NewState} = handle_node_joining(OtherPlist, From, State),
   Reply = {ok, NewState#state.local_plist},
   {reply, Reply, NewState};
 
@@ -170,6 +171,10 @@ handle_call({'$gen_cluster', joined_announcement, KnownRing}, From, State) ->
 handle_call({'$gen_cluster', plist}, _From, State) ->
   Reply = {ok, State#state.local_plist},
   {reply, Reply, State};
+
+handle_call({'$gen_cluster', mod_plist, Mod}, _From, State) ->
+  Proplist = proplists:get_value(Mod, State#state.local_plist),
+  {reply, {ok, Proplist}, State};
 
 handle_call({'$gen_cluster', globally_registered_name}, _From, State) ->
   Reply = {ok, globally_registered_name(State)},
@@ -289,9 +294,9 @@ code_change(OldVsn, State, Extra) ->
 %% Func: handle_node_joining(OtherNode, State) -> {ok, NewState}
 %% Description: Called when another node joins the server cluster. 
 %%--------------------------------------------------------------------
-handle_node_joining(Mod, {OtherPid, _Tag}, State) ->
-  ?TRACE("handle_node_joining", {Mod, OtherPid}),
-  {ok, NewState} = add_pid_to_plist(Mod, OtherPid, State),
+handle_node_joining(OtherPlist, {OtherPid, _Tag}, State) ->
+  ?TRACE("handle_node_joining", OtherPid),
+  {ok, NewState} = add_pids_to_plist(OtherPlist, State),
   
   % callback
   #state{module=Mod, local_plist=Plist, state=ExtState} = NewState,
@@ -341,7 +346,7 @@ join_existing_cluster(#state{module = Mod} = State) ->
     _ ->
       ?TRACE("joining server...", whereis_global(State)),
       ?TRACE("join state", [State, Mod]),
-      {ok, KnownPlist} = gen_cluster:call({global, globally_registered_name(State)}, {'$gen_cluster', join}),
+      {ok, KnownPlist} = gen_cluster:call({global, globally_registered_name(State)}, {'$gen_cluster', join, State#state.local_plist}),
       {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
       broadcast_join_announcement(NewInformedState)
   end,
@@ -388,7 +393,7 @@ whereis_global(State) -> global:whereis_name(globally_registered_name(State)).
 %% gen_cluster will globally register a pid of the format below. This allows
 %% for each module that becomes a gen_cluster to have a central rally point and
 %% will not confluct with other modules using gen_cluster
-globally_registered_name(#state{module = Mod} = _State) -> "gen_cluster_" ++ atom_to_list(Mod).
+globally_registered_name(#state{module = _Mod} = _State) -> "gen_cluster_". %  ++ atom_to_list(Mod)
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
@@ -411,7 +416,7 @@ add_pids_to_plist([{HeadMod, HeadPids}|OtherPids], State) ->
 add_pids_to_plist([], State) ->
   {ok, State}.
 
-add_pid_list_to_plist(OtherMod, [], State) -> {ok, State};
+add_pid_list_to_plist(_OtherMod, [], State) -> {ok, State};
 add_pid_list_to_plist(OtherMod, [Head|Tail], State) ->
   {ok, NewState} = add_pid_to_plist(OtherMod, Head, State),
   add_pid_list_to_plist(OtherMod, Tail, NewState).
@@ -423,9 +428,11 @@ add_pid_to_plist(OtherMod, OtherPid, #state{local_plist = Plist} = State) ->
     false ->
       erlang:monitor(process, OtherPid),
       % Add it to the proplist
-      OtherPids = proplists:get_value(OtherMod, Plist),
       OtherPlists = proplists:delete(OtherMod, Plist),
-      [{OtherMod, [OtherPid|OtherPids]}|OtherPlists]
+      case proplists:get_value(OtherMod, Plist) of
+        undefined -> [{OtherMod, [OtherPid]}|OtherPlists];
+        OtherPids ->  [{OtherMod, [OtherPid|OtherPids]}|OtherPlists]
+      end
   end,
   NewState  = State#state{local_plist = NewPlist},
   {ok, NewState}.

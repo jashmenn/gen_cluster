@@ -5,17 +5,19 @@ ERL							= erl
 EBIN						= ebin
 CFLAGS					= -I include -pa $(EBIN)
 COMPILE					= $(CC) $(CFLAGS) -o $(EBIN)
-EBIN_DIRS				= $(wildcard deps/*/ebin)
-ERLC_FLAGS      = -W -pa ./ebin
+EBIN_DIRS				= test/ebin ebin
+EBIN_DIR_FLAGS  = -pa test/ebin -pa ebin
+ERLC_FLAGS      = -W $(EBIN_DIR_FLAGS)
+SILENCE         = 
 
 all: ebin compile
 
 compile:
-	@$(ERL) -pa $(EBIN_DIRS) -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'
+	$(SILENCE)$(ERL) $(ERLC_FLAGS) -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'
 
 edoc:
 	@echo Generating $(APP) documentation from srcs
-	@$(ERL) -noinput -eval 'edoc:application($(APP), "./", [{doc, "doc/"}, {files, "src/"}])' -s erlang halt
+	$(SILENCE)$(ERL) -noinput -eval 'edoc:application($(APP), "./", [{doc, "doc/"}, {files, "src/"}])' -s erlang halt
 
 ebin:
 	@mkdir ebin
@@ -30,4 +32,4 @@ test: all $(TEST_OBJ)
 				-s init stop
 
 clean:
-	rm -rf ebin/*.beam ebin/erl_crash.dump erl_crash.dump ebin/*.boot ebin/*.rel ebin/*.script
+	rm -rf ebin/*.beam ebin/erl_crash.dump erl_crash.dump ebin/*.boot ebin/*.rel ebin/*.script test/ebin/*.beam

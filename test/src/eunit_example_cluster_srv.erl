@@ -1,12 +1,7 @@
 -module(eunit_example_cluster_srv).
 -include_lib("eunit/include/eunit.hrl").
-
--define (DEBUG, false).
--define (TRACE(X, M), case ?DEBUG of
-  true -> io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M]);
-  false -> ok
-end).
-
+-include ("debugger.hrl").
+-compile(export_all).
 
 setup() ->
     ?TRACE("seed servers", self()),
@@ -27,30 +22,21 @@ teardown(Servers) ->
      end, Servers),
     ok.
 
-node_state_test_not() ->
+node_state_test() ->
   {
-      setup, fun setup/0, fun teardown/1,
-      fun () ->
-         ?assert(true =:= true),
-         {ok, Plist} = gen_cluster:plist(node1),
-         ?assertEqual(3, length(Plist)),
-         {ok, State1} = gen_cluster:call(node1, {state}),
-         % ?assert(is_record(State1, state) =:= true),
-         % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),
-         {ok}
-      end
+    setup, fun setup/0, fun teardown/1,
+    fun () ->
+      ?assert(true =:= true),
+      {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
+      ?assertEqual(3, length(Plist)),
+      {ok, _State1} = gen_cluster:call(node1, {state}),
+      % ?assert(is_record(State1, state) =:= true),
+      % ?assertEqual(testnode1, gen_cluster:call(testnode1, {registered_name})),
+      {ok}
+    end
   }.
 
-node_join_test_not() ->
-  {
-      setup, fun setup/0, fun teardown/1,
-      fun () ->
-         ?assert(true =:= true),
-         {ok}
-      end
-  }.
-
-node_global_takeover_test_() ->
+node_global_takeover_test() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -58,7 +44,6 @@ node_global_takeover_test_() ->
          {ok, Name1} = gen_cluster:call(Node1Pid, {'$gen_cluster', globally_registered_name}),
 
          GlobalPid1 = global:whereis_name(Name1),
-         erlang:display({global_pid1, Name1, GlobalPid1}),
          ?assert(is_process_alive(GlobalPid1)),
 
          gen_cluster:cast(Node1Pid, stop),
@@ -66,14 +51,33 @@ node_global_takeover_test_() ->
 
          GlobalPid2 = global:whereis_name(Name1),
          ?assert(GlobalPid1 =/= GlobalPid2),
-         erlang:display({global_pid2, Name1, GlobalPid2}),
          ?assert(is_process_alive(GlobalPid2)),
 
-         {ok, Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
-
+         {ok, _Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
          {ok}
       end
   }.
+
+different_type_of_node_test_() ->
+  {
+    setup, fun setup/0, fun teardown/1,
+    fun() ->
+      Node1Pid = whereis(node1),
+      
+      {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
+      ?assertEqual(3, length(Plist)),
+      {ok, _State1} = gen_cluster:call(node1, {state}),
+      
+      {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
+      {ok, TwoPlist} = gen_cluster:plist(node1),
+      erlang:display({two_plist, TwoPlist}),
+      ?assertEqual(2, length(TwoPlist)),
+      ok
+    end
+  }.
+
+
+% {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
 
 % node_leave_test_not() ->
 %   {

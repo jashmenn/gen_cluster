@@ -1,10 +1,4 @@
-%%%-------------------------------------------------------------------
-%%% File    : example_cluster_srv.erl
-%%% Author  : nmurray@attinteractive.com
-%%% Description : desc
-%%% Created     : 2009-08-03
-%%%-------------------------------------------------------------------
--module(example_cluster_srv).
+-module (other_example_cluster_srv).
 -behaviour(gen_cluster).
 
 -compile(export_all).
@@ -141,7 +135,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% JoiningPid.
 %%--------------------------------------------------------------------
 handle_join(JoiningPid, Pidlist, State) ->
-  ?TRACE("~p:~p handle join called: ~p Pidlist: ~p~n", [JoiningPid, Pidlist]),
+  io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
   {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -153,10 +147,10 @@ handle_join(JoiningPid, Pidlist, State) ->
 %%--------------------------------------------------------------------
 
 handle_node_joined(JoiningPid, Pidlist, State) ->
-  ?TRACE("~p:~p handle_node_joined called: ~p Pidlist: ~p~n", [JoiningPid, Pidlist]),
+  io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
   {ok, State}.
 
 handle_leave(LeavingPid, Pidlist, Info, State) ->
-  ?TRACE("~p:~p handle_leave called: ~p Pidlist: ~p~n", [LeavingPid, Pidlist, Info]),
+  io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
   {ok, State}.
 
