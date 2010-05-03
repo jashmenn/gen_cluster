@@ -1,12 +1,18 @@
 -module(eunit_example_cluster_srv).
 -include_lib("eunit/include/eunit.hrl").
--define(TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
+
+-define (DEBUG, false).
+-define (TRACE(X, M), case ?DEBUG of
+  true -> io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M]);
+  false -> ok
+end).
+
 
 setup() ->
     ?TRACE("seed servers", self()),
     {ok, Node1Pid} = example_cluster_srv:start_named(node1, {seed, undefined}),
-    {ok, Node2Pid} = example_cluster_srv:start_named(node2, {seed, Node1Pid}),
-    {ok, Node3Pid} = example_cluster_srv:start_named(node3, {seed, Node1Pid}),
+    {ok, _Node2Pid} = example_cluster_srv:start_named(node2, {seed, Node1Pid}),
+    {ok, _Node3Pid} = example_cluster_srv:start_named(node3, {seed, Node1Pid}),
     [node1, node2, node3].
 
 teardown(Servers) ->
@@ -52,6 +58,7 @@ node_global_takeover_test_() ->
          {ok, Name1} = gen_cluster:call(Node1Pid, {'$gen_cluster', globally_registered_name}),
 
          GlobalPid1 = global:whereis_name(Name1),
+         erlang:display({global_pid1, Name1, GlobalPid1}),
          ?assert(is_process_alive(GlobalPid1)),
 
          gen_cluster:cast(Node1Pid, stop),
@@ -59,6 +66,7 @@ node_global_takeover_test_() ->
 
          GlobalPid2 = global:whereis_name(Name1),
          ?assert(GlobalPid1 =/= GlobalPid2),
+         erlang:display({global_pid2, Name1, GlobalPid2}),
          ?assert(is_process_alive(GlobalPid2)),
 
          {ok, Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),

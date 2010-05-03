@@ -18,7 +18,12 @@
 % gen_cluster callback
 -export([handle_join/3, handle_node_joined/3, handle_leave/4]).
 
--define(TRACE(X, M),  io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M])).
+-define (DEBUG, false).
+-define (TRACE(X, M), case ?DEBUG of
+  true -> io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M]);
+  false -> ok
+end).
+
 -record(state, {name, pid, timestamp}).
 
 %%====================================================================
@@ -140,8 +145,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% JoiningPid.
 %%--------------------------------------------------------------------
 handle_join(JoiningPid, Pidlist, State) ->
-    io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
-    {ok, State}.
+  io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+  {ok, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_node_joined(JoiningPid, Pidlist, State) -> {ok, State} 
@@ -152,10 +157,10 @@ handle_join(JoiningPid, Pidlist, State) ->
 %%--------------------------------------------------------------------
 
 handle_node_joined(JoiningPid, Pidlist, State) ->
-    io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
-    {ok, State}.
+  io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+  {ok, State}.
 
 handle_leave(LeavingPid, Pidlist, Info, State) ->
-    io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
-    {ok, State}.
+  io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
+  {ok, State}.
 

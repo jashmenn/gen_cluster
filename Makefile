@@ -6,6 +6,7 @@ EBIN						= ebin
 CFLAGS					= -I include -pa $(EBIN)
 COMPILE					= $(CC) $(CFLAGS) -o $(EBIN)
 EBIN_DIRS				= $(wildcard deps/*/ebin)
+ERLC_FLAGS      = -W -pa ./ebin
 
 all: ebin compile
 
@@ -18,6 +19,15 @@ edoc:
 
 ebin:
 	@mkdir ebin
+
+
+test: all $(TEST_OBJ)
+	$(SILENCE) $(ERL)	$(ERLC_FLAGS) \
+				-pa ./test/ebin/ \
+				-noshell 	\
+				-sname local_test 	\
+				-s test_suite test 	\
+				-s init stop
 
 clean:
 	rm -rf ebin/*.beam ebin/erl_crash.dump erl_crash.dump ebin/*.boot ebin/*.rel ebin/*.script
