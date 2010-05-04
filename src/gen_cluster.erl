@@ -287,14 +287,15 @@ code_change(OldVsn, State, Extra) ->
 handle_node_joining(OtherPlist, {OtherPid, _Tag}, State) ->  
   ?TRACE("handle_node_joining", OtherPid),
   % Update this across the cluster
-  StateData = update_all_server_state(State, fun(TheState) ->
-    {ok, NewStateWithAddedPids} = add_pids_to_plist(OtherPlist, TheState),
-    
-    % callback
-    #state{module=Mod, local_plist=Plist, state=ExtState} = NewStateWithAddedPids,
-    {ok, NewExtState} = Mod:handle_join(OtherPid, Plist, ExtState),
-    NewStateWithAddedPids#state{state = NewExtState}
+  NewStateWithAddedPids = update_all_server_state(State, fun(TheState) ->
+    {ok, NewStateWithAddedPids} = add_pids_to_plist(OtherPlist, TheState),    
+    NewStateWithAddedPids
   end),
+  
+  % callback
+  #state{module=Mod, local_plist=Plist, state=ExtState} = NewStateWithAddedPids,
+  {ok, NewExtState} = Mod:handle_join(OtherPid, Plist, ExtState),
+  StateData = NewStateWithAddedPids#state{state = NewExtState},
   
   % update the external state
   {ok, StateData}.
