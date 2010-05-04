@@ -9,7 +9,7 @@
 
 -compile(export_all).
 
--export([start/0, start_link/1, start_named/2]).
+-export([start/0, start_link/1, start_named/2, expand_clone/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -37,10 +37,13 @@ start() ->
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(Config) ->
-    gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+  gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
 
 start_named(Name, Config) ->
-    gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
+  gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
+
+expand_clone(Seed) ->
+  gen_cluster:start_link(?MODULE, [{seed, Seed}], []).
 
 %%====================================================================
 %% gen_server callbacks

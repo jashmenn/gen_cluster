@@ -89,6 +89,14 @@ different_type_of_node_test_() ->
     end
   }.
 
+do_some_more_test_() ->
+  fun() ->
+    {ok, Pid} = example_cluster_srv:start(),
+    {ok, _Pid2} = example_cluster_srv:expand_clone(Pid),
+    {ok, Proplists} = gen_cluster:plist(example_cluster_srv),
+    ?assertEqual(2, length(proplists:get_value(example_cluster_srv, Proplists))),
+    ok
+  end.
 
 % {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
 
