@@ -551,11 +551,15 @@ get_seed_nodes(State) ->
 
   Servers3.
 
-get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, state = ExtState} = State) ->
-  Pids = case LeaderPid of
+get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, seed = Seed, state = ExtState} = State) ->
+  SeedPids = case Seed of
     undefined -> [];
-    PidList when is_list(PidList) -> PidList;
-    E when is_pid(E) -> [E]
+    X1 -> [X1]
+  end,
+  Pids = case LeaderPid of
+    undefined -> SeedPids;
+    PidList when is_list(PidList) -> lists:flatten([PidList, SeedPids]);
+    E when is_pid(E) -> [E|SeedPids]
   end,
   Pids2 = case erlang:function_exported(Mod, leader_pids, 1) of
     true -> 
