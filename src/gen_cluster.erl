@@ -338,24 +338,12 @@ update_all_server_state(State, UpdateFun) ->
 %% Func: join_existing_cluster(State) -> {ok, NewState} | false
 %% Description: Look for any existing servers in the cluster, try to join them
 %%--------------------------------------------------------------------
-join_existing_cluster(#state{module = Mod} = State) ->
+join_existing_cluster(State) ->
   Servers = get_seed_nodes(State),
   connect_to_servers(Servers),
   global:sync(), % otherwise we may not see the pid yet
-  LeaderPid = get_leader_pids(State),
-  sync_with_leaders(LeaderPid, State),
-  NewState = case whereis_global(State) of % join unless we are the main server 
-    undefined ->
-      ?TRACE("existing cluster undefined", undefined),
-      State;
-    X when X =:= self() ->
-      ?TRACE("we are the cluster, skipping", X),
-      State;
-    Pid ->
-      ?TRACE("joining server...", whereis_global(State)),
-      ?TRACE("join state", [State, Mod]),
-      sync_with_leader(Pid, State)
-  end,
+  LeaderPids = get_leader_pids(State),
+  NewState = sync_with_leaders(LeaderPids, State),
   {ok, NewState}.
 
 sync_with_leaders([], State)        -> State;
@@ -415,7 +403,7 @@ globally_registered_name(#state{module = Mod} = _State) -> erlang:list_to_atom("
 start_cluster(State) ->
   global:sync(), % otherwise we may not see the other pids yet
   ?TRACE("Starting server:", globally_registered_name(State)),
-  RegisterResp = global:register_name(globally_registered_name(State), self()),
+  RegisterResp = global:re_register_name(globally_registered_name(State), self()),
   {RegisterResp, State}.
 
 % The elements are a list of proplists from the this or other servers  
@@ -538,7 +526,7 @@ get_seed_nodes(State) ->
 
   Servers3.
 
-get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} = _State) ->
+get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} = State) ->
   Pids = case LeaderPid of
     undefined -> [];
     E -> [E]
@@ -548,9 +536,13 @@ get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} =
       case Mod:leader_pids(ExtState) of
         undefined -> Pids;
         [undefined] -> Pids;
-        APid ->
-          lists:append([APid, Pids])
+        List when is_list(List) -> lists:append([List, Pids]);
+        APid when is_pid(APid) -> [APid|Pids]
       end;
     false -> Pids
   end,
-  Pids2.
+  case whereis_global(State) of % join unless we are the main server 
+    undefined -> Pids2;
+    X when X =:= self() -> Pids2;
+    Pid -> [Pid|Pids2]
+  end.
