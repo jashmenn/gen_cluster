@@ -10,7 +10,7 @@
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/3, handle_node_joined/3, handle_leave/4]).
+-export([handle_join/3, handle_leave/4]).
 
 -include ("debugger.hrl").
 
@@ -135,22 +135,16 @@ code_change(_OldVsn, State, _Extra) ->
 %% JoiningPid.
 %%--------------------------------------------------------------------
 handle_join(JoiningPid, Pidlist, State) ->
-  io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+  ?TRACE("~p:~p handle join called: ~p Pidlist: ~p~n", [JoiningPid, Pidlist]),
   {ok, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_node_joined(JoiningPid, Pidlist, State) -> {ok, State} 
+%% Function: handle_leave(JoiningPid, Pidlist, State) -> {ok, State} 
 %%     JoiningPid = pid(),
 %%     Pidlist = list() of pids()
 %% Description: Called whenever a node joins the cluster via another node and
 %%     the joining node is simply announcing its presence.
 %%--------------------------------------------------------------------
-
-handle_node_joined(JoiningPid, Pidlist, State) ->
-  io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
-  {ok, State}.
-
 handle_leave(LeavingPid, Pidlist, Info, State) ->
-  io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
+  ?TRACE("~p:~p handle_leave called: ~p Pidlist: ~p~n", [LeavingPid, Pidlist, Info]),
   {ok, State}.
-
