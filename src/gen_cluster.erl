@@ -377,7 +377,8 @@ sync_with_leader(Pid, State) when is_pid(Pid) ->
           ?TRACE("Error joining", {error, {could_not_join, Error}}),
           State
       end
-  end.
+  end;
+sync_with_leader(_, State) -> State.
 
 connect_to_servers(ServerNames) ->
     ?TRACE("servernames", ServerNames),
