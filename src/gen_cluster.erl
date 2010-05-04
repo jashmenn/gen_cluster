@@ -367,7 +367,7 @@ sync_with_leader(Pid, State) when is_pid(Pid) ->
   case is_process_alive(Pid) andalso Pid =/= self() of
     false -> State;
     true ->
-      case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 100) of
+      case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 500) of
         {ok, KnownPlist} ->
           case add_pids_to_plist(KnownPlist, State) of
             {ok, NewInformedState} -> NewInformedState#state{leader_pids = Pid};
