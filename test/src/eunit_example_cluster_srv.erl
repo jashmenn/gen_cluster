@@ -76,7 +76,7 @@ different_type_of_node_test_() ->
       ?assertEqual([Node4Pid], OtherC),
       
       % Kill off one and make sure the rest still match
-      gen_cluster:cast(Node1Pid, stop),
+      gen_cluster:cast(Node3Pid, stop),
       timer:sleep(500),
       
       Node2Plist = gen_cluster:plist(node2),
@@ -84,6 +84,7 @@ different_type_of_node_test_() ->
       % erlang:display({Node2Plist, Node4Plist}),
       ?assertEqual(Node2Plist, Node4Plist),
       
+      teardown([node4]),
       {ok}
     end
   }.

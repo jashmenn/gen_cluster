@@ -212,7 +212,7 @@ handle_call_reply({stop, Reason, ExtState}, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast({update_local_state, UpdateFun}, State) ->
+handle_cast({'$gen_cluster', update_local_state, UpdateFun}, State) ->
   NewState = UpdateFun(State),
   {noreply, NewState};
 handle_cast(Msg, State) -> 
@@ -236,7 +236,7 @@ handle_info({'DOWN', _MonitorRef, process, Pid, Info} = T, #state{module = Mod} 
     {true, TheNewState} when is_record(TheNewState, state) -> 
       {noreply, TheNewState};
     E ->
-      erlang:display(E)
+      erlang:display({?MODULE, ?LINE, error, {unknown, E}})
   end;
 
 handle_info(Info, State) -> 
@@ -297,7 +297,6 @@ handle_node_joining(OtherPlist, {OtherPid, _Tag}, State) ->
   end),
   
   % update the external state
-  erlang:display({?MODULE, ?LINE, StateData}),
   {ok, StateData}.
 
 handle_node_leaving(Pid, Info, State) ->
@@ -306,7 +305,6 @@ handle_node_leaving(Pid, Info, State) ->
   Bool = does_pid_exist_in_plist(Pid, State),
   
   NewState = update_all_server_state(State, fun(CurrentState) ->
-    ?TRACE("update_all_server_state", CurrentState),
     case does_pid_exist_in_plist(Pid, CurrentState) of
       true ->
         {ok, NewState2} = remove_pid_from_plist(Pid, CurrentState),
@@ -444,23 +442,39 @@ add_pid_to_plist(OtherMod, OtherPid, #state{local_plist = Plist} = State) ->
   NewState  = State#state{local_plist = NewPlist},
   {ok, NewState}.
 
-does_pid_exist_in_plist(OtherPid, #state{local_plist = Plist, module = Mod} = _State) -> % bool()
-  case proplists:get_value(Mod, Plist) of
-    undefined -> false;
-    ListOfPids -> lists:any(fun(Elem) -> Elem =:= OtherPid end, ListOfPids)
+does_pid_exist_in_plist(OtherPid, State) -> % bool()
+  case fetch_pid_and_mod_from_proplist(OtherPid, State) of
+    {ok, _, OtherPid} -> true;
+    {error, not_found, OtherPid} -> false
   end.
 
 % The pid exists, for sure
-remove_pid_from_plist(OtherPid, #state{local_plist = Plist, module = Mod} = State) ->
-  % Get and remove the current Mod plist
-  ListOfModPids = proplists:get_value(Mod, Plist),
-  NewListOfModePids = lists:delete(OtherPid, ListOfModPids),
-  
-  OtherPlists = proplists:delete(Mod, Plist),
-  NewPlist = [{Mod, NewListOfModePids}|OtherPlists],
-  NewState  = State#state{local_plist = NewPlist},
-  {ok, NewState}.
+remove_pid_from_plist(OtherPid, #state{local_plist = Plist} = State) ->
+  case fetch_pid_and_mod_from_proplist(OtherPid, State) of
+    {error, not_found, OtherPid} -> {ok, State};
+    {ok, Mod, OtherPid} -> 
+      % Get and remove the current Mod plist
+      ListOfModPids = proplists:get_value(Mod, Plist),
+      NewListOfModePids = lists:delete(OtherPid, ListOfModPids),
 
+      OtherPlists = proplists:delete(Mod, Plist),
+      NewPlist = [{Mod, NewListOfModePids}|OtherPlists],
+      NewState  = State#state{local_plist = NewPlist},
+      {ok, NewState}
+  end.
+
+% Fetch pid from the proplist
+fetch_pid_and_mod_from_proplist(Pid, #state{local_plist = Plist} = _State) ->
+  Keys = proplists:get_keys(Plist),
+  F = fun(List) -> lists:any(fun(Elem) -> Elem =:= Pid end, List) end,
+  G = fun(Key) -> proplists:get_value(Key, Plist) end,
+
+  {ContainingList,_} = lists:partition(fun(Key) -> F(G(Key)) end, Keys),
+  case ContainingList of
+    [] -> {error, not_found, Pid};
+    [Node] -> {ok, Node, Pid}
+  end.
+    
 take_over_globally_registered_name_if_needed(State) -> % NewState
   case need_to_take_over_globally_registered_name(State) of
     true -> 
