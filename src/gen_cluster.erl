@@ -396,7 +396,7 @@ start_cluster_if_needed(State) ->
 
 whereis_global(State) -> global:whereis_name(globally_registered_name(State)).
 
-globally_registered_name(#state{module = _Mod} = _State) -> "gen_cluster". %  ++ atom_to_list(Mod)
+globally_registered_name(#state{module = _Mod} = _State) -> gen_cluster. %  ++ atom_to_list(Mod)
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
