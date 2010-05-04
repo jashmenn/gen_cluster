@@ -396,10 +396,7 @@ start_cluster_if_needed(State) ->
 
 whereis_global(State) -> global:whereis_name(globally_registered_name(State)).
 
-%% gen_cluster will globally register a pid of the format below. This allows
-%% for each module that becomes a gen_cluster to have a central rally point and
-%% will not confluct with other modules using gen_cluster
-globally_registered_name(#state{module = _Mod} = _State) -> "gen_cluster_". %  ++ atom_to_list(Mod)
+globally_registered_name(#state{module = _Mod} = _State) -> "gen_cluster". %  ++ atom_to_list(Mod)
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
