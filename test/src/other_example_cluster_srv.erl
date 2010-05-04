@@ -37,7 +37,7 @@ start_link(Config) ->
 start_named(Name, Config) ->
     gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
     
-leader_pids(_State) -> [whereis(node_manager)].
+leader_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
 
 %%====================================================================
 %% gen_server callbacks

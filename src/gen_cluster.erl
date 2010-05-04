@@ -341,9 +341,9 @@ update_all_server_state(State, UpdateFun) ->
 join_existing_cluster(#state{module = Mod} = State) ->
   Servers = get_seed_nodes(State),
   connect_to_servers(Servers),
+  global:sync(), % otherwise we may not see the pid yet
   LeaderPid = get_leader_pids(State),
   sync_with_leaders(LeaderPid, State),
-  global:sync(), % otherwise we may not see the pid yet
   NewState = case whereis_global(State) of % join unless we are the main server 
     undefined ->
       ?TRACE("existing cluster undefined", undefined),
@@ -547,6 +547,7 @@ get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} =
     true -> 
       case Mod:leader_pids(ExtState) of
         undefined -> Pids;
+        [undefined] -> Pids;
         APid ->
           lists:append([APid, Pids])
       end;

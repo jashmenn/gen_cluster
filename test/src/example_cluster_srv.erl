@@ -46,7 +46,7 @@ start_named(Name, Config) ->
 expand_clone(Seed) ->
   gen_cluster:start_link(?MODULE, [{seed, Seed}], []).
 
-leader_pids(_State) -> [whereis(gen_cluster)].
+leader_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
 
 %%====================================================================
 %% gen_server callbacks
