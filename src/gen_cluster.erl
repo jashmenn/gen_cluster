@@ -162,12 +162,6 @@ handle_call({'$gen_cluster', join, OtherPlist}, From, State) ->
   Reply = {ok, NewState#state.local_plist},
   {reply, Reply, NewState};
 
-handle_call({'$gen_cluster', joined_announcement, KnownRing}, From, State) ->
-  ?TRACE("$gen_cluster joined_announcement", State),
-  {ok, NewState} = handle_node_joined_announcement(From, KnownRing, State),
-  Reply = {ok, NewState#state.local_plist},
-  {reply, Reply, NewState};
-
 handle_call({'$gen_cluster', plist}, _From, State) ->
   Reply = {ok, State#state.local_plist},
   {reply, Reply, State};
@@ -218,6 +212,9 @@ handle_call_reply({stop, Reason, ExtState}, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({update_local_state, UpdateFun}, State) ->
+  NewState = UpdateFun(State),
+  {noreply, NewState};
 handle_cast(Msg, State) -> 
   Mod = State#state.module,
   ExtState = State#state.state,
@@ -230,23 +227,16 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', MonitorRef, process, Pid, Info}, State) ->
+handle_info({'DOWN', _MonitorRef, process, Pid, Info} = T, #state{module = Mod} = State) ->
   ?TRACE("received 'DOWN'. Removing node from list. Info:", Info),
-  ExtState = State#state.state,
-  Mod = State#state.module,
-
-  case does_pid_exist_in_plist(Pid, State) of
-    true ->
-      {ok, NewState2} = remove_pid_from_plist(Pid, State),
-      Pidlist = NewState2#state.local_plist,
-      {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
-      NewState3 = take_over_globally_registered_name_if_needed(NewState2),
-      % NewState3 = NewState2,
-      NewState4 = NewState3#state{state=NewExtState},
-      {noreply, NewState4};
-    false ->
-      Reply = Mod:handle_info({'DOWN', MonitorRef, process, Pid, Info}, ExtState),
-      handle_cast_info_reply(Reply, State)
+  case handle_node_leaving(Pid, Info, State) of
+    {false, #state{state = ExtState} = _NoPidNewState} -> 
+      Reply = Mod:handle_info(T, ExtState),
+      handle_cast_info_reply(Reply, State);
+    {true, TheNewState} when is_record(TheNewState, state) -> 
+      {noreply, TheNewState};
+    E ->
+      erlang:display(E)
   end;
 
 handle_info(Info, State) -> 
@@ -294,39 +284,56 @@ code_change(OldVsn, State, Extra) ->
 %% Func: handle_node_joining(OtherNode, State) -> {ok, NewState}
 %% Description: Called when another node joins the server cluster. 
 %%--------------------------------------------------------------------
-handle_node_joining(OtherPlist, {OtherPid, _Tag}, State) ->
+handle_node_joining(OtherPlist, {OtherPid, _Tag}, State) ->  
   ?TRACE("handle_node_joining", OtherPid),
-  {ok, NewState} = add_pids_to_plist(OtherPlist, State),
+  % Update this across the cluster
+  StateData = update_all_server_state(State, fun(TheState) ->
+    {ok, NewStateWithAddedPids} = add_pids_to_plist(OtherPlist, TheState),
+    
+    % callback
+    #state{module=Mod, local_plist=Plist, state=ExtState} = NewStateWithAddedPids,
+    {ok, NewExtState} = Mod:handle_join(OtherPid, Plist, ExtState),
+    NewStateWithAddedPids#state{state = NewExtState}
+  end),
   
-  % callback
-  #state{module=Mod, local_plist=Plist, state=ExtState} = NewState,
-  {ok, NewExtState} = Mod:handle_join(OtherPid, Plist, ExtState),
-
   % update the external state
-  StateData = NewState#state{state=NewExtState},
+  erlang:display({?MODULE, ?LINE, StateData}),
   {ok, StateData}.
 
-%%--------------------------------------------------------------------
-%% Func: handle_node_joined_announcement(KnownRing, State) -> {ok, NewState}
-%% Description: When a node joins a known server, it then broadcasts to all
-%% other servers that it joined. It tells all other servers about the entire
-%% pidlist it received from the known node. This is a check to make sure that
-%% everytime a node joins all the other nodes know about it as well as every
-%% other node in the cluster.
-%% 
-%% TODO, consider removing this method entirely
-%%--------------------------------------------------------------------
-handle_node_joined_announcement({OtherPid, _Tag}, KnownRing, State) ->
-  {ok, NewState} = add_pids_to_plist(KnownRing, State),
+handle_node_leaving(Pid, Info, State) ->
+  ExtState = State#state.state,
+  Mod = State#state.module,
+  Bool = does_pid_exist_in_plist(Pid, State),
+  
+  NewState = update_all_server_state(State, fun(CurrentState) ->
+    ?TRACE("update_all_server_state", CurrentState),
+    case does_pid_exist_in_plist(Pid, CurrentState) of
+      true ->
+        {ok, NewState2} = remove_pid_from_plist(Pid, CurrentState),
+        Pidlist = NewState2#state.local_plist,
+        {ok, NewExtState} = Mod:handle_leave(Pid, Pidlist, Info, ExtState),
+        NewState3 = take_over_globally_registered_name_if_needed(NewState2),
+        % NewState3 = NewState2,
+        NewState3#state{state=NewExtState};
+      false -> State
+    end
+  end),
+  {Bool, NewState}.
+  % update_all_server_state
 
-  % callback
-  #state{module=Mod, local_plist=Plist, state=ExtState} = NewState,
-  {ok, NewExtState} = Mod:handle_node_joined(OtherPid, Plist, ExtState),
 
-  % update the external state
-  StateData = NewState#state{state=NewExtState},
-
-  {ok, StateData}.
+%% Called by global server to update the state of all servers.
+%% The result of applying UpdateFun to State is returned, and
+%% an update request to all local servers is sent. 
+update_all_server_state(State, UpdateFun) ->
+  NewState = UpdateFun(State),
+  CastFun = fun({_PidMod, Pids}) ->
+    lists:map(fun(Pid) ->
+      gen_server:cast(Pid, {'$gen_cluster', update_local_state, UpdateFun})
+    end, Pids)
+  end,
+  lists:foreach(CastFun, State#state.local_plist),
+  NewState.
 
 %%--------------------------------------------------------------------
 %% Func: join_existing_cluster(State) -> {ok, NewState} | false
@@ -348,7 +355,7 @@ join_existing_cluster(#state{module = Mod} = State) ->
       ?TRACE("join state", [State, Mod]),
       {ok, KnownPlist} = gen_cluster:call({global, globally_registered_name(State)}, {'$gen_cluster', join, State#state.local_plist}),
       {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
-      broadcast_join_announcement(NewInformedState)
+      NewInformedState
   end,
   {ok, NewState}.
 
@@ -453,15 +460,6 @@ remove_pid_from_plist(OtherPid, #state{local_plist = Plist, module = Mod} = Stat
   NewPlist = [{Mod, NewListOfModePids}|OtherPlists],
   NewState  = State#state{local_plist = NewPlist},
   {ok, NewState}.
-
-% Called when starting up. The module will always be starting from within the module
-% of the type it started with. Locally safe
-broadcast_join_announcement(#state{module = Mod, local_plist = Plist} = State) ->
-  ThisModPlist  = proplists:get_value(Mod, Plist),
-  NotSelfPids   = lists:delete(self(), ThisModPlist),
-  NotGlobalPids = lists:delete(whereis_global(State), NotSelfPids),
-  [call(Pid, {'$gen_cluster', joined_announcement, Plist}) || Pid <- NotGlobalPids],
-  State.
 
 take_over_globally_registered_name_if_needed(State) -> % NewState
   case need_to_take_over_globally_registered_name(State) of

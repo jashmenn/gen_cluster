@@ -4,17 +4,14 @@
 -compile(export_all).
 
 setup() ->
-    ?TRACE("seed servers", self()),
     {ok, Node1Pid} = example_cluster_srv:start_named(node1, {seed, undefined}),
     {ok, _Node2Pid} = example_cluster_srv:start_named(node2, {seed, Node1Pid}),
     {ok, _Node3Pid} = example_cluster_srv:start_named(node3, {seed, Node1Pid}),
     [node1, node2, node3].
 
 teardown(Servers) ->
-    io:format(user, "teardown: ~p ~n", [Servers]),
     lists:map(fun(Pname) -> 
         Pid = whereis(Pname),
-        io:format(user, "takedown: ~p ~p ~n", [Pname, Pid]),
         gen_cluster:cast(Pid, stop), 
         try unregister(Pname)
         catch _:_ -> ok
@@ -53,7 +50,7 @@ node_global_takeover_test() ->
          ?assert(GlobalPid1 =/= GlobalPid2),
          ?assert(is_process_alive(GlobalPid2)),
 
-         {ok, _Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
+         % {ok, _Node4Pid} = example_cluster_srv:start_named(node4, {seed, GlobalPid2}),
          {ok}
       end
   }.
@@ -63,16 +60,31 @@ different_type_of_node_test_() ->
     setup, fun setup/0, fun teardown/1,
     fun() ->
       Node1Pid = whereis(node1),
+      Node2Pid = whereis(node2),
+      Node3Pid = whereis(node3),
       
-      {ok, Plist} = gen_cluster:mod_plist(example_cluster_srv, node1),
-      ?assertEqual(3, length(Plist)),
-      {ok, _State1} = gen_cluster:call(node1, {state}),
-      
-      {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
+      {ok, Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
       {ok, TwoPlist} = gen_cluster:plist(node1),
-      erlang:display({two_plist, TwoPlist}),
       ?assertEqual(2, length(TwoPlist)),
-      ok
+      
+      ExampleC = proplists:get_value(example_cluster_srv, TwoPlist),
+      ?assertEqual(3, length(ExampleC)),
+      ?assertEqual([Node3Pid, Node2Pid, Node1Pid], ExampleC),
+      
+      OtherC = proplists:get_value(other_example_cluster_srv, TwoPlist),
+      ?assertEqual(1, length(OtherC)),
+      ?assertEqual([Node4Pid], OtherC),
+      
+      % Kill off one and make sure the rest still match
+      gen_cluster:cast(Node1Pid, stop),
+      timer:sleep(500),
+      
+      Node2Plist = gen_cluster:plist(node2),
+      Node4Plist = gen_cluster:plist(node4),
+      % erlang:display({Node2Plist, Node4Plist}),
+      ?assertEqual(Node2Plist, Node4Plist),
+      
+      {ok}
     end
   }.
 
