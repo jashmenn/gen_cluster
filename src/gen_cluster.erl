@@ -36,6 +36,7 @@
 
 %% Helper functions
 -export([
+  leader/1,
   mod_plist/2,
   plist/1
 ]).
@@ -58,7 +59,7 @@ behaviour_info(_) ->
   data,         % user mod's data
   seed,         % seed
   local_plist,  % local proplist of pids
-  leader_pid    % pid of the leader process
+  leader_pids   % pid list of the leader processes
 }).
 
 %% debugging helper
@@ -104,6 +105,8 @@ enter_loop(Mod, Options, State, ServerName, Timeout) ->
 wake_hib(Parent, Name, State, Mod, Debug) ->
   gen_server:wake_hib(Parent, Name, State, Mod, Debug).
 
+leader(PidRef) ->
+  call(PidRef, {'$gen_cluster', leader}).
 mod_plist(Type, PidRef) ->
   call(PidRef, {'$gen_cluster', mod_plist, Type}).
 plist(PidRef) -> % {ok, Plist}
@@ -122,8 +125,10 @@ plist(PidRef) -> % {ok, Plist}
 
 init([Mod, Args]) ->
   Seed = proplists:get_value(seed, Args, undefined),
+  LeaderPids = proplists:get_value(leader_pids, Args, []),
+  
   ?TRACE("Starting seed", Seed),
-  InitialState = #state{module=Mod, local_plist=[{Mod, [self()]}], seed=Seed},
+  InitialState = #state{module=Mod, local_plist=[{Mod, [self()]}], seed=Seed, leader_pids = LeaderPids},
   {ok, State1} = join_existing_cluster(InitialState),
   {_Resp, State2} = start_cluster_if_needed(State1),
   
@@ -158,9 +163,14 @@ init([Mod, Args]) ->
 % This join call is called when
 handle_call({'$gen_cluster', join, OtherPlist}, From, State) ->
   ?TRACE("$gen_cluster join", State),
-  {ok, NewState} = handle_node_joining(OtherPlist, From, State),
+  T = handle_node_joining(OtherPlist, From, State),
+  {ok, NewState} = T,
   Reply = {ok, NewState#state.local_plist},
   {reply, Reply, NewState};
+
+handle_call({'$gen_cluster', leader}, _From, State) ->
+  Reply = global:whereis_name(globally_registered_name(State)),
+  {reply, Reply, State};
 
 handle_call({'$gen_cluster', plist}, _From, State) ->
   Reply = {ok, State#state.local_plist},
@@ -288,14 +298,18 @@ handle_node_joining(OtherPlist, {OtherPid, _Tag}, State) ->
   ?TRACE("handle_node_joining", OtherPid),
   % Update this across the cluster
   NewStateWithAddedPids = update_all_server_state(State, fun(TheState) ->
-    {ok, NewStateWithAddedPids} = add_pids_to_plist(OtherPlist, TheState),    
-    NewStateWithAddedPids
+    case add_pids_to_plist(OtherPlist, TheState) of
+      {ok, NewStateWithAddedPids} -> NewStateWithAddedPids;
+      _Else -> TheState
+    end
   end),
   
   % callback
   #state{module=Mod, local_plist=Plist, state=ExtState} = NewStateWithAddedPids,
-  {ok, NewExtState} = Mod:handle_join(OtherPid, Plist, ExtState),
-  StateData = NewStateWithAddedPids#state{state = NewExtState},
+  StateData = case Mod:handle_join(OtherPid, Plist, ExtState) of
+    {ok, NewExtState} -> NewStateWithAddedPids#state{state = NewExtState};
+    _Else -> NewStateWithAddedPids
+  end,
   
   % update the external state
   {ok, StateData}.
@@ -349,10 +363,21 @@ join_existing_cluster(State) ->
 sync_with_leaders([], State)        -> State;
 sync_with_leaders([H|Rest], State)  -> sync_with_leaders(Rest, sync_with_leader(H, State)).
 
-sync_with_leader(Pid, State) ->
-  {ok, KnownPlist} = gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}),
-  {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
-  NewInformedState#state{leader_pid = Pid}.
+sync_with_leader(Pid, State) when is_pid(Pid) ->
+  case is_process_alive(Pid) andalso Pid =/= self() of
+    false -> State;
+    true ->
+      case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 1000) of
+        {ok, KnownPlist} ->
+          case add_pids_to_plist(KnownPlist, State) of
+            {ok, NewInformedState} -> NewInformedState#state{leader_pids = Pid};
+            _Else -> State
+          end;
+        Error ->
+          ?TRACE("Error joining", {error, {could_not_join, Error}}),
+          State
+      end
+  end.
 
 connect_to_servers(ServerNames) ->
     ?TRACE("servernames", ServerNames),
@@ -393,7 +418,7 @@ start_cluster_if_needed(State) ->
 whereis_global(State) -> global:whereis_name(globally_registered_name(State)).
 
 % This needs to be unique to the names
-globally_registered_name(#state{module = Mod} = _State) -> erlang:list_to_atom("gen_cluster_" ++ atom_to_list(Mod)).
+globally_registered_name(#state{module = Mod} = _State) -> Mod.%erlang:list_to_atom("gen_cluster_" ++ atom_to_list(Mod)).
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
@@ -526,10 +551,11 @@ get_seed_nodes(State) ->
 
   Servers3.
 
-get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} = State) ->
+get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, state = ExtState} = State) ->
   Pids = case LeaderPid of
     undefined -> [];
-    E -> [E]
+    PidList when is_list(PidList) -> PidList;
+    E when is_pid(E) -> [E]
   end,
   Pids2 = case erlang:function_exported(Mod, leader_pids, 1) of
     true -> 
@@ -541,8 +567,9 @@ get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} =
       end;
     false -> Pids
   end,
-  case whereis_global(State) of % join unless we are the main server 
+  Pids3 = case whereis_global(State) of % join unless we are the main server 
     undefined -> Pids2;
     X when X =:= self() -> Pids2;
     Pid -> [Pid|Pids2]
-  end.
+  end,
+  lists:usort(Pids3). % get unique elements

@@ -32,10 +32,10 @@ start() ->
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(Config) ->
-    gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+    gen_cluster:start_link({local, ?MODULE}, ?MODULE, Config, []).
 
 start_named(Name, Config) ->
-    gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
+    gen_cluster:start_link({local, Name}, ?MODULE, Config, []).
     
 leader_pids(_State) -> [global:whereis_name(gen_cluster_example_cluster_srv)].
 

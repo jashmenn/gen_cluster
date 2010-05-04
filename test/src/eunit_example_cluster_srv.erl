@@ -4,9 +4,9 @@
 -compile(export_all).
 
 setup() ->
-    {ok, Node1Pid} = example_cluster_srv:start_named(node1, {seed, undefined}),
-    {ok, _Node2Pid} = example_cluster_srv:start_named(node2, {seed, Node1Pid}),
-    {ok, _Node3Pid} = example_cluster_srv:start_named(node3, {seed, Node1Pid}),
+    {ok, Node1Pid} = example_cluster_srv:start_named(node1, [{seed, undefined}]),
+    {ok, _Node2Pid} = example_cluster_srv:start_named(node2, [{seed, Node1Pid}]),
+    {ok, _Node3Pid} = example_cluster_srv:start_named(node3, [{seed, Node1Pid}]),
     [node1, node2, node3].
 
 teardown(Servers) ->
@@ -19,7 +19,7 @@ teardown(Servers) ->
      end, Servers),
     ok.
 
-node_state_test() ->
+node_state_test_() ->
   {
     setup, fun setup/0, fun teardown/1,
     fun () ->
@@ -33,7 +33,7 @@ node_state_test() ->
     end
   }.
 
-node_global_takeover_test() ->
+node_global_takeover_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -63,7 +63,7 @@ different_type_of_node_test_() ->
       Node2Pid = whereis(node2),
       Node3Pid = whereis(node3),
       
-      {ok, Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
+      {ok, Node4Pid} = other_example_cluster_srv:start_named(node4, [{seed, Node1Pid}, {leader_pids, Node1Pid}]),
       {ok, TwoPlist} = gen_cluster:plist(node1),
       ?assertEqual(2, length(TwoPlist)),
       
@@ -92,9 +92,15 @@ different_type_of_node_test_() ->
 do_some_more_test_() ->
   fun() ->
     {ok, Pid} = example_cluster_srv:start(),
-    {ok, _Pid2} = example_cluster_srv:expand_clone(Pid),
+    {ok, Pid2} = example_cluster_srv:expand_clone(Pid),
+    {ok, _Pid3} = example_cluster_srv:expand_clone(Pid),
     {ok, Proplists} = gen_cluster:plist(example_cluster_srv),
-    ?assertEqual(2, length(proplists:get_value(example_cluster_srv, Proplists))),
+    OrigLeader = gen_cluster:leader(Pid),
+    gen_server:cast(Pid, stop),
+    timer:sleep(500),
+    NewLeader = gen_cluster:leader(Pid2),
+    ?assertEqual(3, length(proplists:get_value(example_cluster_srv, Proplists))),
+    ?assert(OrigLeader =/= NewLeader),
     ok
   end.
 

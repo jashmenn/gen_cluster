@@ -38,10 +38,10 @@ start() ->
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(Config) ->
-  gen_cluster:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+  gen_cluster:start_link({local, ?MODULE}, ?MODULE, Config, []).
 
 start_named(Name, Config) ->
-  gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
+  gen_cluster:start_link({local, Name}, ?MODULE, Config, []).
 
 expand_clone(Seed) ->
   gen_cluster:start_link(?MODULE, [{seed, Seed}], []).
