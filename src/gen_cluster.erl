@@ -341,6 +341,8 @@ update_all_server_state(State, UpdateFun) ->
 join_existing_cluster(#state{module = Mod} = State) ->
   Servers = get_seed_nodes(State),
   connect_to_servers(Servers),
+  LeaderPid = get_leader_pids(State),
+  sync_with_leaders(LeaderPid, State),
   global:sync(), % otherwise we may not see the pid yet
   NewState = case whereis_global(State) of % join unless we are the main server 
     undefined ->
@@ -352,11 +354,17 @@ join_existing_cluster(#state{module = Mod} = State) ->
     Pid ->
       ?TRACE("joining server...", whereis_global(State)),
       ?TRACE("join state", [State, Mod]),
-      {ok, KnownPlist} = gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}),
-      {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
-      NewInformedState#state{leader_pid = Pid}
+      sync_with_leader(Pid, State)
   end,
   {ok, NewState}.
+
+sync_with_leaders([], State)        -> State;
+sync_with_leaders([H|Rest], State)  -> sync_with_leaders(Rest, sync_with_leader(H, State)).
+
+sync_with_leader(Pid, State) ->
+  {ok, KnownPlist} = gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}),
+  {ok, NewInformedState} = add_pids_to_plist(KnownPlist, State),
+  NewInformedState#state{leader_pid = Pid}.
 
 connect_to_servers(ServerNames) ->
     ?TRACE("servernames", ServerNames),
@@ -396,7 +404,8 @@ start_cluster_if_needed(State) ->
 
 whereis_global(State) -> global:whereis_name(globally_registered_name(State)).
 
-globally_registered_name(#state{module = _Mod} = _State) -> gen_cluster. %_" ++ atom_to_list(Mod)).
+% This needs to be unique to the names
+globally_registered_name(#state{module = Mod} = _State) -> erlang:list_to_atom("gen_cluster_" ++ atom_to_list(Mod)).
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
@@ -528,3 +537,19 @@ get_seed_nodes(State) ->
   end,
 
   Servers3.
+
+get_leader_pids(#state{module = Mod, leader_pid = LeaderPid, state = ExtState} = _State) ->
+  Pids = case LeaderPid of
+    undefined -> [];
+    E -> [E]
+  end,
+  Pids2 = case erlang:function_exported(Mod, leader_pids, 1) of
+    true -> 
+      case Mod:leader_pids(ExtState) of
+        undefined -> Pids;
+        APid ->
+          lists:append([APid, Pids])
+      end;
+    false -> Pids
+  end,
+  Pids2.
