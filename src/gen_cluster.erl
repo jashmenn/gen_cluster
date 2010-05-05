@@ -38,7 +38,8 @@
 -export([
   leader/1,
   mod_plist/2,
-  plist/1
+  plist/1,
+  add_child/3
 ]).
 
 behaviour_info(callbacks) ->
@@ -111,6 +112,8 @@ mod_plist(Type, PidRef) ->
   call(PidRef, {'$gen_cluster', mod_plist, Type}).
 plist(PidRef) -> % {ok, Plist}
   call(PidRef, {'$gen_cluster', plist}).
+add_child(PidRef, Mod, Pid) ->
+  call(PidRef, {'$gen_cluster', join, [{Mod, [Pid]}]}).
 
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |

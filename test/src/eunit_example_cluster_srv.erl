@@ -104,6 +104,18 @@ do_some_more_test_() ->
     ok
   end.
 
+add_child_test_() ->
+  {setup, fun setup/0, fun teardown/1,
+    fun() ->
+      {ok, Pid} = dummy_gen_server:start_link(),
+      Node1Pid = whereis(node1),
+      gen_cluster:add_child(Node1Pid, dummy_gen_server, Pid),
+      {ok, Proplists} = gen_cluster:plist(node1),
+      ?assertEqual(1, length(proplists:get_value(dummy_gen_server, Proplists))),
+      ok
+    end
+  }.
+
 % {ok, _Node4Pid} = other_example_cluster_srv:start_named(node4, {seed, Node1Pid}),
 
 % node_leave_test_not() ->
