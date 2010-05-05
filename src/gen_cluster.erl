@@ -359,7 +359,7 @@ join_existing_cluster(State) ->
   Servers = get_seed_nodes(State),
   connect_to_servers(Servers),
   global:sync(), % otherwise we may not see the pid yet
-  LeaderPids = get_leader_pids(State),
+  LeaderPids = lists:append([Servers, get_leader_pids(State)]),
   NewState = sync_with_leaders(LeaderPids, State),
   {ok, NewState}.
 
@@ -370,13 +370,14 @@ sync_with_leader(Pid, State) when is_pid(Pid) ->
   case is_process_alive(Pid) andalso Pid =/= self() of
     false -> State;
     true ->
-      case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 500) of
+      case catch gen_cluster:call(Pid, {'$gen_cluster', join, State#state.local_plist}, 1000) of
         {ok, KnownPlist} ->
           case add_pids_to_plist(KnownPlist, State) of
             {ok, NewInformedState} -> NewInformedState#state{leader_pids = Pid};
             _Else -> State
           end;
         Error ->
+          % erlang:display({error, Error}),
           ?TRACE("Error joining", {error, {could_not_join, Error}}),
           State
       end
@@ -525,11 +526,14 @@ get_seed_nodes(State) ->
   Servers = [],
   Mod = State#state.module,
   ExtState = State#state.state,
+  case erlang:module_loaded(Mod) of
+    true -> ok;
+    false -> code:load_file(Mod)
+  end,
   Servers1 = case erlang:function_exported(Mod, seed_nodes, 1) of
     true -> [Mod:seed_nodes(ExtState)|Servers];
     false -> Servers
   end,
-
   Servers2 = case init:get_argument(gen_cluster_known) of
     {ok, [[Server]]} ->
       lists:append([list_to_atom(Server), Servers1]);
@@ -553,8 +557,7 @@ get_seed_nodes(State) ->
         {ok, Terms} -> lists:append(Servers2, Terms);
         _ -> Servers2
       end
-  end,
-  
+  end,  
   Servers3.
 
 get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, seed = Seed, state = ExtState} = State) ->
