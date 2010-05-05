@@ -392,17 +392,19 @@ connect_to_servers(ServerNames) ->
           skip; % do nothing
       _ -> 
          ?TRACE("connecting to server: ", Server),
-         Node = Server,
-         case net_adm:ping(Node) of
-             pong ->
-                 ok;
-             _ ->
-                 ?TRACE("WARNING: ping of Node failed:", Node) % should this be a bigger failure? how should we handle this so that way the first server doesn't always have to have this problem?
-         end
+         connect_to_server(Server)
       end
     end,
     ServerNames),
    {ok, ServerRefs}.
+
+connect_to_server(Pid) when is_pid(Pid) -> connect_to_server(node(Pid));
+connect_to_server(Node) ->
+  case net_adm:ping(Node) of
+    pong -> ok;
+    _ ->
+      ?TRACE("WARNING: ping of Node failed:", Node) % should this be a bigger failure? how should we handle this so that way the first server doesn't always have to have this problem?
+  end.
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster_if_needed(State) -> {{ok, yes}, NewState} |
