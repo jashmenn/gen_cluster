@@ -524,7 +524,7 @@ get_seed_nodes(State) ->
   Mod = State#state.module,
   ExtState = State#state.state,
   Servers1 = case erlang:function_exported(Mod, seed_nodes, 1) of
-    true -> lists:append([Mod:seed_nodes(ExtState), Servers]);
+    true -> [Mod:seed_nodes(ExtState)|Servers];
     false -> Servers
   end,
 
@@ -545,14 +545,14 @@ get_seed_nodes(State) ->
   % "node@nohost".
   % "foo@bar".
   Servers3 = case os:getenv("GEN_CLUSTER_SEED_CONFIG") of
-    false -> [];
+    false -> Servers2;
     File ->
       case file:consult(File) of
         {ok, Terms} -> lists:append(Servers2, Terms);
         _ -> Servers2
       end
   end,
-
+  
   Servers3.
 
 get_leader_pids(#state{module = Mod, leader_pids = LeaderPid, seed = Seed, state = ExtState} = State) ->
